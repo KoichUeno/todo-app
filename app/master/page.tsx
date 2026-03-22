@@ -11,6 +11,7 @@ type Profile = {
   department: string;
   role: string;
   login_id?: string;
+  password_plain?: string;
 };
 
 type TemplateSubtask = {
@@ -36,6 +37,7 @@ export default function MasterPage() {
 
   const [tab, setTab] = useState<"users" | "templates">("users");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string>("");
 
   // ユーザー
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -85,6 +87,7 @@ export default function MasterPage() {
         }
         setProfiles(allProfiles);
         setIsAdmin(true);
+        setCurrentUserRole(myProfile.role);
       }
       fetchTemplates();
     });
@@ -244,6 +247,9 @@ export default function MasterPage() {
     if (role === "管理者") return "bg-blue-100 text-blue-600";
     return "bg-gray-100 text-gray-500";
   };
+
+  // パスワード表示権限：IT担当・経営者のみ
+  const canViewPasswords = currentUserRole === "IT担当" || currentUserRole === "経営者" || currentUserRole === "admin";
 
   if (isAdmin === null) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400 text-sm">読み込み中...</div>;
@@ -440,6 +446,9 @@ export default function MasterPage() {
                           </div>
                           {profile.department && <p className="text-xs text-gray-400 mt-0.5">{profile.department}</p>}
                           {profile.login_id && <p className="text-xs text-gray-400 mt-0.5">ID: {profile.login_id}</p>}
+                          {canViewPasswords && profile.password_plain && (
+                            <p className="text-xs text-gray-500 mt-0.5 font-mono">PW: {profile.password_plain}</p>
+                          )}
                         </div>
                         <div className="flex gap-2">
                           <button

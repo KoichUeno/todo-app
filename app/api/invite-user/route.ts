@@ -35,10 +35,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // profilesテーブルに登録
+  // profilesテーブルに登録（password_plainも保存）
   await supabaseAdmin
     .from('profiles')
-    .upsert({ id: data.user.id, name, role, login_id }, { onConflict: 'id' })
+    .upsert({ id: data.user.id, name, role, login_id, password_plain: password }, { onConflict: 'id' })
 
   return NextResponse.json({ success: true })
 }
@@ -63,6 +63,9 @@ export async function PATCH(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // profilesテーブルのpassword_plainも更新
+  await supabaseAdmin.from('profiles').update({ password_plain: new_password }).eq('id', user_id)
 
   return NextResponse.json({ success: true })
 }
