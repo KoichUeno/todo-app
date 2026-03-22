@@ -1,25 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// タスク一覧を取得
-export async function GET() {
+// テンプレートのサブタスク一覧を取得
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const template_id = searchParams.get('template_id')
+
+  if (!template_id) return NextResponse.json({ error: 'template_id is required' }, { status: 400 })
+
   const { data, error } = await supabase
-    .from('tasks')
-    .select('*, subtasks(*)')
-    .order('created_at', { ascending: false })
+    .from('template_subtasks')
+    .select('*')
+    .eq('template_id', template_id)
+    .order('order_num', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
-// タスクを追加
+// テンプレートにサブタスクを追加
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { title, description, due_date, important_note, assignee, project_name, is_recurring, importance } = body
+  const { template_id, title, assignee, order_num } = body
 
   const { data, error } = await supabase
-    .from('tasks')
-    .insert({ title, description, due_date, important_note, assignee, project_name, is_recurring, importance })
+    .from('template_subtasks')
+    .insert({ template_id, title, assignee, order_num })
     .select()
     .single()
 
@@ -27,23 +33,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
-// タスクを更新（完了/未完了の切り替えなど）
-export async function PATCH(request: NextRequest) {
-  const body = await request.json()
-  const { id, ...updates } = body
-
-  const { data, error } = await supabase
-    .from('tasks')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
-}
-
-// タスクを削除
+// テンプレートのサブタスクを削除
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
@@ -51,7 +41,7 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
   const { error } = await supabase
-    .from('tasks')
+    .from('template_subtasks')
     .delete()
     .eq('id', id)
 

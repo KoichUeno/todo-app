@@ -1,30 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// サブタスクを追加
-export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const { task_id, title, description, order_num, assignee } = body
-
+// テンプレート一覧を取得
+export async function GET() {
   const { data, error } = await supabase
-    .from('subtasks')
-    .insert({ task_id, title, description, order_num, assignee })
-    .select()
-    .single()
+    .from('templates')
+    .select('*')
+    .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+  return NextResponse.json(data)
 }
 
-// サブタスクを更新
-export async function PATCH(request: NextRequest) {
+// テンプレートを追加
+export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { id, ...updates } = body
+  const { title } = body
+
+  if (!title?.trim()) {
+    return NextResponse.json({ error: 'タイトルは必須です' }, { status: 400 })
+  }
 
   const { data, error } = await supabase
-    .from('subtasks')
-    .update(updates)
-    .eq('id', id)
+    .from('templates')
+    .insert({ title })
     .select()
     .single()
 
@@ -32,15 +31,15 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json(data)
 }
 
-// サブタスクを削除
+// テンプレートを削除
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  if (!id) return NextResponse.json({ error: 'IDが必要です' }, { status: 400 })
 
   const { error } = await supabase
-    .from('subtasks')
+    .from('templates')
     .delete()
     .eq('id', id)
 
