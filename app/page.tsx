@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { createBrowserClient } from "@supabase/ssr";
+import { useRouter } from "next/navigation";
 
 type Subtask = {
   id: string;
@@ -32,6 +34,18 @@ const TASK_TEMPLATES = [
 ];
 
 export default function Home() {
+  const router = useRouter();
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/auth");
+    router.refresh();
+  };
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
@@ -249,7 +263,15 @@ export default function Home() {
       <div className="max-w-6xl mx-auto">
 
         {/* タイトル */}
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">タスク管理</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl font-bold text-gray-800">タスク管理</h1>
+          <button
+            onClick={handleLogout}
+            className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            ログアウト
+          </button>
+        </div>
         <p className="text-gray-500 mb-8 text-sm">タスクを30分単位に分解して、今すぐ着手しよう。</p>
 
         {/* 2カラムレイアウト */}
