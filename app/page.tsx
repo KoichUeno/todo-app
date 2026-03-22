@@ -88,6 +88,7 @@ export default function Home() {
     router.refresh();
   };
 
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -138,8 +139,17 @@ export default function Home() {
 
   // DBからタスク一覧・プロフィール・テンプレートを取得
   useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return;
+      const res = await fetch('/api/profiles');
+      if (res.ok) {
+        const allProfiles = await res.json();
+        setProfiles(allProfiles || []);
+        const me = allProfiles.find((p: Profile) => p.id === session.user.id);
+        setCurrentUser(me || null);
+      }
+    });
     fetchTasks();
-    fetchProfiles();
     fetchTemplates();
   }, []);
 
@@ -154,10 +164,7 @@ export default function Home() {
 
   const fetchProfiles = async () => {
     const res = await fetch('/api/profiles');
-    if (res.ok) {
-      const data = await res.json();
-      setProfiles(data || []);
-    }
+    if (res.ok) setProfiles(await res.json() || []);
   };
 
   const fetchTemplates = async () => {
@@ -397,14 +404,22 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: subtaskId, is_completed: !current }),
     });
-    setTasks(tasks.map((t) => {
-      if (t.id !== taskId) return t;
-      const updatedSubtasks = t.subtasks.map((s) =>
-        s.id === subtaskId ? { ...s, is_completed: !current } : s
-      );
-      const allDone = updatedSubtasks.every((s) => s.is_completed);
-      return { ...t, subtasks: updatedSubtasks, is_completed: allDone };
-    }));
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updatedSubtasks = task.subtasks.map((s) =>
+      s.id === subtaskId ? { ...s, is_completed: !current } : s
+    );
+    const allDone = updatedSubtasks.length > 0 && updatedSubtasks.every((s) => s.is_completed);
+    if (allDone !== task.is_completed) {
+      await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, is_completed: allDone }),
+      });
+    }
+    setTasks(tasks.map((t) =>
+      t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks, is_completed: allDone }
+    ));
   };
 
   // サブタスクを追加する
@@ -484,10 +499,16 @@ export default function Home() {
     setTasks(tasks.map((t) => (t.id === id ? { ...t, showSubtasks: !t.showSubtasks } : t)));
   };
 
-  const activeTasks = tasks.filter((t) => t.status === '進行中' || (!t.status && !t.is_completed));
-  const completedTasks = tasks.filter((t) => t.status === '完了（未請求）' || (t.is_completed && !t.status));
-  const invoicedTasks = tasks.filter((t) => t.status === '請求済');
-  const collectedTasks = tasks.filter((t) => t.status === '回収済');
+  // 担当者ロールの場合は自分担当のタスクのみ表示
+  const isAdmin = !currentUser || currentUser.role === '管理者' || currentUser.role === 'admin';
+  const visibleTasks = isAdmin
+    ? tasks
+    : tasks.filter((t) => t.assignee === currentUser?.name);
+
+  const activeTasks = visibleTasks.filter((t) => t.status === '進行中' || (!t.status && !t.is_completed));
+  const completedTasks = visibleTasks.filter((t) => t.status === '完了（未請求）' || (t.is_completed && !t.status));
+  const invoicedTasks = visibleTasks.filter((t) => t.status === '請求済');
+  const collectedTasks = visibleTasks.filter((t) => t.status === '回収済');
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -785,7 +806,7 @@ export default function Home() {
 
             {/* カンバンビュー */}
             {!loading && view === "kanban" && (
-              <KanbanView tasks={tasks} onStatusChange={changeTaskStatus} onDelete={deleteTask} onRegisterTemplate={registerAsTemplate} />
+              <KanbanView tasks={visibleTasks} onStatusChange={changeTaskStatus} onDelete={deleteTask} onRegisterTemplate={registerAsTemplate} />
             )}
 
             {/* 案件別ビュー */}

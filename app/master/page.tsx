@@ -35,6 +35,7 @@ export default function MasterPage() {
   );
 
   const [tab, setTab] = useState<"users" | "templates">("users");
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   // ユーザー
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -70,9 +71,20 @@ export default function MasterPage() {
   const [newSubNote, setNewSubNote] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.push("/auth"); return; }
-      fetchProfiles();
+
+      const res = await fetch("/api/profiles");
+      if (res.ok) {
+        const allProfiles = await res.json();
+        const myProfile = allProfiles.find((p: Profile) => p.id === session.user.id);
+        if (!myProfile || (myProfile.role !== "管理者" && myProfile.role !== "admin")) {
+          router.push("/");
+          return;
+        }
+        setProfiles(allProfiles);
+        setIsAdmin(true);
+      }
       fetchTemplates();
     });
   }, []);
@@ -80,6 +92,17 @@ export default function MasterPage() {
   const fetchProfiles = async () => {
     const res = await fetch("/api/profiles");
     if (res.ok) setProfiles(await res.json());
+  };
+
+  const deleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`「${userName}」を削除しますか？この操作は取り消せません。`)) return;
+    const res = await fetch(`/api/invite-user?user_id=${userId}`, { method: "DELETE" });
+    if (res.ok) {
+      setProfiles((prev) => prev.filter((p) => p.id !== userId));
+    } else {
+      const err = await res.json();
+      alert(`削除に失敗しました: ${err.error}`);
+    }
   };
 
   const fetchTemplates = async () => {
@@ -212,6 +235,10 @@ export default function MasterPage() {
     if (role === "管理者" || role === "admin") return "管理者";
     return "担当者";
   };
+
+  if (isAdmin === null) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400 text-sm">読み込み中...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -413,6 +440,12 @@ export default function MasterPage() {
                             className="text-xs text-gray-400 hover:text-blue-500 transition-colors"
                           >
                             編集
+                          </button>
+                          <button
+                            onClick={() => deleteUser(profile.id, profile.name)}
+                            className="text-xs text-gray-300 hover:text-red-500 transition-colors"
+                          >
+                            削除
                           </button>
                         </div>
                       </div>

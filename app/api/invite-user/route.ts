@@ -66,3 +66,25 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ success: true })
 }
+
+// ユーザーを削除する
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const user_id = searchParams.get('user_id')
+
+  if (!user_id) {
+    return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
+  }
+
+  // profilesテーブルから削除
+  await supabaseAdmin.from('profiles').delete().eq('id', user_id)
+
+  // Supabase Auth からも削除
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(user_id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
