@@ -78,7 +78,8 @@ export default function MasterPage() {
       if (res.ok) {
         const allProfiles = await res.json();
         const myProfile = allProfiles.find((p: Profile) => p.id === session.user.id);
-        if (!myProfile || (myProfile.role !== "管理者" && myProfile.role !== "admin")) {
+        const adminRoles = ["IT担当", "経営者", "管理者", "admin"];
+        if (!myProfile || !adminRoles.includes(myProfile.role)) {
           router.push("/");
           return;
         }
@@ -232,8 +233,16 @@ export default function MasterPage() {
   };
 
   const roleLabel = (role: string) => {
-    if (role === "管理者" || role === "admin") return "管理者";
+    if (role === "admin") return "IT担当";
+    if (["IT担当", "経営者", "管理者", "担当者"].includes(role)) return role;
     return "担当者";
+  };
+
+  const roleBadgeClass = (role: string) => {
+    if (role === "IT担当" || role === "admin") return "bg-purple-100 text-purple-600";
+    if (role === "経営者") return "bg-red-100 text-red-600";
+    if (role === "管理者") return "bg-blue-100 text-blue-600";
+    return "bg-gray-100 text-gray-500";
   };
 
   if (isAdmin === null) {
@@ -326,6 +335,8 @@ export default function MasterPage() {
                       onChange={(e) => setInviteRole(e.target.value)}
                       className="w-28 border border-blue-200 rounded-lg px-2 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
                     >
+                      <option value="IT担当">IT担当</option>
+                      <option value="経営者">経営者</option>
                       <option value="管理者">管理者</option>
                       <option value="担当者">担当者</option>
                     </select>
@@ -386,6 +397,8 @@ export default function MasterPage() {
                             onChange={(e) => setEditRole(e.target.value)}
                             className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
                           >
+                            <option value="IT担当">IT担当</option>
+                            <option value="経営者">経営者</option>
                             <option value="管理者">管理者</option>
                             <option value="担当者">担当者</option>
                           </select>
@@ -420,8 +433,8 @@ export default function MasterPage() {
                             <p className="text-sm font-semibold text-gray-800 flex items-center gap-1">
                               <UserRound size={14} className="text-gray-400" /> {profile.name}
                             </p>
-                            <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${(profile.role === "管理者" || profile.role === "admin") ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"}`}>
-                              {(profile.role === "管理者" || profile.role === "admin") ? <ShieldCheck size={9} /> : <UserRound size={9} />}
+                            <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${roleBadgeClass(profile.role)}`}>
+                              {(profile.role === "担当者" || !profile.role) ? <UserRound size={9} /> : <ShieldCheck size={9} />}
                               {roleLabel(profile.role)}
                             </span>
                           </div>

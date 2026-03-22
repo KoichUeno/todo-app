@@ -1472,12 +1472,20 @@ function SidebarByAssignee({ activeTasks }: { activeTasks: Task[] }) {
     setCollapsed((prev) => ({ ...prev, [assignee]: !prev[assignee] }));
   };
 
-  // 担当者ごとにグループ化（担当者なしは「未割当」）
+  // 担当者ごとにグループ化（タスク担当者 + サブタスク担当者を含む、担当者なしは「未割当」）
   const groups: Record<string, Task[]> = {};
   for (const task of activeTasks) {
-    const key = task.assignee?.trim() || "未割当";
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(task);
+    const assignees = new Set<string>();
+    const taskAssignee = task.assignee?.trim();
+    if (taskAssignee) assignees.add(taskAssignee); else assignees.add("未割当");
+    // サブタスクの担当者も追加
+    for (const sub of task.subtasks || []) {
+      if (sub.assignee?.trim()) assignees.add(sub.assignee.trim());
+    }
+    for (const key of assignees) {
+      if (!groups[key]) groups[key] = [];
+      if (!groups[key].find((t) => t.id === task.id)) groups[key].push(task);
+    }
   }
 
   // 担当者名でソート（「未割当」は最後）
