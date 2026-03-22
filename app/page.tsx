@@ -499,16 +499,12 @@ export default function Home() {
     setTasks(tasks.map((t) => (t.id === id ? { ...t, showSubtasks: !t.showSubtasks } : t)));
   };
 
-  // 担当者ロールの場合は自分担当のタスクのみ表示
   const isAdmin = !currentUser || currentUser.role === '管理者' || currentUser.role === 'admin';
-  const visibleTasks = isAdmin
-    ? tasks
-    : tasks.filter((t) => t.assignee === currentUser?.name);
 
-  const activeTasks = visibleTasks.filter((t) => t.status === '進行中' || (!t.status && !t.is_completed));
-  const completedTasks = visibleTasks.filter((t) => t.status === '完了（未請求）' || (t.is_completed && !t.status));
-  const invoicedTasks = visibleTasks.filter((t) => t.status === '請求済');
-  const collectedTasks = visibleTasks.filter((t) => t.status === '回収済');
+  const activeTasks = tasks.filter((t) => t.status === '進行中' || (!t.status && !t.is_completed));
+  const completedTasks = tasks.filter((t) => t.status === '完了（未請求）' || (t.is_completed && !t.status));
+  const invoicedTasks = tasks.filter((t) => t.status === '請求済');
+  const collectedTasks = tasks.filter((t) => t.status === '回収済');
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -806,7 +802,7 @@ export default function Home() {
 
             {/* カンバンビュー */}
             {!loading && view === "kanban" && (
-              <KanbanView tasks={visibleTasks} onStatusChange={changeTaskStatus} onDelete={deleteTask} onRegisterTemplate={registerAsTemplate} />
+              <KanbanView tasks={tasks} onStatusChange={changeTaskStatus} onDelete={deleteTask} onRegisterTemplate={registerAsTemplate} />
             )}
 
             {/* 案件別ビュー */}
