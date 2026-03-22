@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 type Subtask = {
   id: string;
@@ -208,6 +209,31 @@ export default function Home() {
     }));
     setEditingSubtaskId(null);
     setEditingSubtaskTitle("");
+  };
+
+  // サブタスクをドラッグ＆ドロップで並び替える
+  const reorderSubtasks = async (taskId: string, result: DropResult) => {
+    if (!result.destination) return;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const reordered = Array.from(task.subtasks);
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+
+    // ローカルの順番をすぐ更新
+    setTasks(tasks.map((t) => t.id === taskId ? { ...t, subtasks: reordered } : t));
+
+    // DBのorder_numを更新
+    await Promise.all(
+      reordered.map((sub, index) =>
+        fetch('/api/subtasks', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sub.id, order_num: index + 1 }),
+        })
+      )
+    );
   };
 
   // サブタスクの表示・非表示を切り替える
@@ -432,79 +458,106 @@ export default function Home() {
                       {task.showSubtasks && (
                         <div className="border-t border-gray-100 px-4 py-3">
                           <p className="text-xs font-semibold text-gray-400 mb-2">30分ステップ</p>
-                          <div className="flex flex-col gap-2">
-                            {task.subtasks.map((sub) => (
-                              <div key={sub.id} className="flex items-start gap-2">
-                                <button
-                                  onClick={() => toggleCompleteSubtask(task.id, sub.id, sub.is_completed)}
-                                  className={`mt-1 w-5 h-5 rounded-full border-2 shrink-0 transition-colors ${
-                                    sub.is_completed
-                                      ? "bg-green-400 border-green-400"
-                                      : "border-gray-300 hover:border-green-400"
-                                  }`}
-                                />
-                                {editingSubtaskId === sub.id ? (
-                                  <div className="flex-1 flex flex-col gap-1">
-                                    <input
-                                      type="text"
-                                      value={editingSubtaskTitle}
-                                      onChange={(e) => setEditingSubtaskTitle(e.target.value)}
-                                      placeholder="サブタスク名"
-                                      className="border border-blue-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                      autoFocus
-                                    />
-                                    <textarea
-                                      value={editingSubtaskDescription}
-                                      onChange={(e) => setEditingSubtaskDescription(e.target.value)}
-                                      placeholder="概要（任意）"
-                                      rows={2}
-                                      className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                                    />
-                                    <input
-                                      type="text"
-                                      value={editingSubtaskAssignee}
-                                      onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
-                                      placeholder="担当者（任意）"
-                                      className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="flex-1">
-                                    <span className={`text-sm ${sub.is_completed ? "line-through text-gray-400" : "text-gray-700"}`}>
-                                      {sub.title}
-                                    </span>
-                                    {sub.description && (
-                                      <p className="text-xs text-gray-400 mt-0.5">{sub.description}</p>
-                                    )}
-                                    {sub.assignee && (
-                                      <p className="text-xs text-blue-400 mt-0.5">👤 {sub.assignee}</p>
-                                    )}
-                                  </div>
-                                )}
-                                {editingSubtaskId === sub.id ? (
-                                  <button
-                                    onClick={() => saveSubtaskEdit(task.id, sub.id)}
-                                    className="text-xs text-blue-500 hover:text-blue-700 transition-colors shrink-0"
-                                  >
-                                    保存
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); }}
-                                    className="text-xs text-gray-400 hover:text-blue-400 transition-colors shrink-0"
-                                  >
-                                    編集
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => deleteSubtask(task.id, sub.id)}
-                                  className="text-xs text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                          <DragDropContext onDragEnd={(result) => reorderSubtasks(task.id, result)}>
+                            <Droppable droppableId={task.id}>
+                              {(provided) => (
+                                <div
+                                  className="flex flex-col gap-2"
+                                  ref={provided.innerRef}
+                                  {...provided.droppableProps}
                                 >
-                                  削除
-                                </button>
-                              </div>
-                            ))}
-                          </div>
+                                  {task.subtasks.map((sub, index) => (
+                                    <Draggable key={sub.id} draggableId={sub.id} index={index}>
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          className={`flex items-start gap-2 rounded-lg ${snapshot.isDragging ? "bg-blue-50 shadow-md" : ""}`}
+                                        >
+                                          {/* ドラッグハンドル */}
+                                          <span
+                                            {...provided.dragHandleProps}
+                                            className="mt-1.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 text-sm"
+                                            title="ドラッグして並び替え"
+                                          >
+                                            ⠿
+                                          </span>
+                                          <button
+                                            onClick={() => toggleCompleteSubtask(task.id, sub.id, sub.is_completed)}
+                                            className={`mt-1 w-5 h-5 rounded-full border-2 shrink-0 transition-colors ${
+                                              sub.is_completed
+                                                ? "bg-green-400 border-green-400"
+                                                : "border-gray-300 hover:border-green-400"
+                                            }`}
+                                          />
+                                          {editingSubtaskId === sub.id ? (
+                                            <div className="flex-1 flex flex-col gap-1">
+                                              <input
+                                                type="text"
+                                                value={editingSubtaskTitle}
+                                                onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                                                placeholder="サブタスク名"
+                                                className="border border-blue-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                                autoFocus
+                                              />
+                                              <textarea
+                                                value={editingSubtaskDescription}
+                                                onChange={(e) => setEditingSubtaskDescription(e.target.value)}
+                                                placeholder="概要（任意）"
+                                                rows={2}
+                                                className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={editingSubtaskAssignee}
+                                                onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
+                                                placeholder="担当者（任意）"
+                                                className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div className="flex-1">
+                                              <span className={`text-sm ${sub.is_completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                                                {sub.title}
+                                              </span>
+                                              {sub.description && (
+                                                <p className="text-xs text-gray-400 mt-0.5">{sub.description}</p>
+                                              )}
+                                              {sub.assignee && (
+                                                <p className="text-xs text-blue-400 mt-0.5">👤 {sub.assignee}</p>
+                                              )}
+                                            </div>
+                                          )}
+                                          {editingSubtaskId === sub.id ? (
+                                            <button
+                                              onClick={() => saveSubtaskEdit(task.id, sub.id)}
+                                              className="text-xs text-blue-500 hover:text-blue-700 transition-colors shrink-0"
+                                            >
+                                              保存
+                                            </button>
+                                          ) : (
+                                            <button
+                                              onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); }}
+                                              className="text-xs text-gray-400 hover:text-blue-400 transition-colors shrink-0"
+                                            >
+                                              編集
+                                            </button>
+                                          )}
+                                          <button
+                                            onClick={() => deleteSubtask(task.id, sub.id)}
+                                            className="text-xs text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                                          >
+                                            削除
+                                          </button>
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                  {provided.placeholder}
+                                </div>
+                              )}
+                            </Droppable>
+                          </DragDropContext>
                           <div className="flex flex-col gap-2 mt-3">
                             <div className="flex gap-2">
                               <input
