@@ -35,6 +35,7 @@ type Subtask = {
   order_num: number;
   assignee: string;
   due_date: string;
+  start_date: string;
 };
 
 type Profile = {
@@ -57,6 +58,7 @@ type Task = {
   title: string;
   description: string;
   due_date: string;
+  start_date: string;
   is_completed: boolean;
   important_note: string;
   assignee: string;
@@ -125,6 +127,7 @@ export default function Home() {
   const [editingTaskDescription, setEditingTaskDescription] = useState("");
   const [editingTaskDueDate, setEditingTaskDueDate] = useState("");
   const [editingTaskDataLocation, setEditingTaskDataLocation] = useState("");
+  const [editingTaskStartDate, setEditingTaskStartDate] = useState("");
   const [editingTaskProjectName, setEditingTaskProjectName] = useState("");
   const [editingTaskImportance, setEditingTaskImportance] = useState("通常");
   const [editingTaskClientType, setEditingTaskClientType] = useState("");
@@ -138,11 +141,13 @@ export default function Home() {
   const [editingSubtaskImportantNote, setEditingSubtaskImportantNote] = useState("");
   const [editingSubtaskAssignee, setEditingSubtaskAssignee] = useState("");
   const [editingSubtaskDueDate, setEditingSubtaskDueDate] = useState("");
+  const [editingSubtaskStartDate, setEditingSubtaskStartDate] = useState("");
 
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
   const [newSubtaskDescriptions, setNewSubtaskDescriptions] = useState<Record<string, string>>({});
   const [newSubtaskNotes, setNewSubtaskNotes] = useState<Record<string, string>>({});
   const [newSubtaskDueDates, setNewSubtaskDueDates] = useState<Record<string, string>>({});
+  const [newSubtaskStartDates, setNewSubtaskStartDates] = useState<Record<string, string>>({});
 
   const [newProjectName, setNewProjectName] = useState("");
   const [newClientId, setNewClientId] = useState("");
@@ -414,6 +419,7 @@ export default function Home() {
         title: editingTaskTitle,
         description: editingTaskDescription,
         due_date: editingTaskDueDate || null,
+        start_date: editingTaskStartDate || null,
         data_location: editingTaskDataLocation || null,
         project_name: editingTaskProjectName || null,
         importance: editingTaskImportance,
@@ -425,7 +431,7 @@ export default function Home() {
       }),
     });
     setTasks(tasks.map((t) =>
-      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId } : t
+      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, start_date: editingTaskStartDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId } : t
     ));
     setEditingTaskId(null);
   };
@@ -491,10 +497,11 @@ export default function Home() {
     const description = newSubtaskDescriptions[taskId]?.trim() || "";
     const important_note = newSubtaskNotes[taskId]?.trim() || "";
     const due_date = newSubtaskDueDates[taskId] || null;
+    const start_date = newSubtaskStartDates[taskId] || null;
     const res = await fetch('/api/subtasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskId, title, assignee, order_num, description: description || null, important_note: important_note || null, due_date }),
+      body: JSON.stringify({ task_id: taskId, title, assignee, order_num, description: description || null, important_note: important_note || null, due_date, start_date }),
     });
     const newSubtask = await res.json();
     setTasks(tasks.map((t) => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t));
@@ -503,6 +510,7 @@ export default function Home() {
     setNewSubtaskDescriptions({ ...newSubtaskDescriptions, [taskId]: "" });
     setNewSubtaskNotes({ ...newSubtaskNotes, [taskId]: "" });
     setNewSubtaskDueDates({ ...newSubtaskDueDates, [taskId]: "" });
+    setNewSubtaskStartDates({ ...newSubtaskStartDates, [taskId]: "" });
   };
 
   // サブタスクを削除する
@@ -522,14 +530,14 @@ export default function Home() {
     await fetch('/api/subtasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: subtaskId, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate || null }),
+      body: JSON.stringify({ id: subtaskId, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate || null, start_date: editingSubtaskStartDate || null }),
     });
     setTasks(tasks.map((t) => {
       if (t.id !== taskId) return t;
       return {
         ...t,
         subtasks: t.subtasks.map((s) =>
-          s.id === subtaskId ? { ...s, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate } : s
+          s.id === subtaskId ? { ...s, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate, start_date: editingSubtaskStartDate } : s
         ),
       };
     }));
@@ -1112,6 +1120,14 @@ export default function Home() {
                                   )}
                                 </div>
                                 <div className="flex gap-2 items-center flex-wrap">
+                                  <span className="text-[10px] text-gray-400">開始:</span>
+                                  <input
+                                    type="date"
+                                    value={editingTaskStartDate}
+                                    onChange={(e) => setEditingTaskStartDate(e.target.value)}
+                                    className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  />
+                                  <span className="text-[10px] text-gray-400">締切:</span>
                                   <input
                                     type="date"
                                     value={editingTaskDueDate}
@@ -1146,7 +1162,7 @@ export default function Home() {
                               <div className="flex flex-wrap gap-2 mb-3">
                                 <button
                                   onClick={() => {
-  setEditingTaskId(task.id); setEditingTaskTitle(task.title); setEditingTaskDescription(task.description ?? ""); setEditingTaskDueDate(task.due_date ?? ""); setEditingTaskDataLocation(task.data_location ?? ""); setEditingTaskProjectName(task.project_name ?? ""); setEditingTaskImportance(task.importance || "通常"); setEditingTaskClientType(task.client_type ?? ""); setEditingTaskTaskType(task.task_type ?? ""); setEditingTaskAssignee(task.assignee ?? ""); setEditingTaskClientId(task.client_id ?? "");
+  setEditingTaskId(task.id); setEditingTaskTitle(task.title); setEditingTaskDescription(task.description ?? ""); setEditingTaskDueDate(task.due_date ?? ""); setEditingTaskStartDate(task.start_date ?? ""); setEditingTaskDataLocation(task.data_location ?? ""); setEditingTaskProjectName(task.project_name ?? ""); setEditingTaskImportance(task.importance || "通常"); setEditingTaskClientType(task.client_type ?? ""); setEditingTaskTaskType(task.task_type ?? ""); setEditingTaskAssignee(task.assignee ?? ""); setEditingTaskClientId(task.client_id ?? "");
   const cat = task.category ?? ""; const isOther = cat.startsWith("その他："); setEditingTaskCategory(isOther ? "その他" : cat); setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
 }}
                                   className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2.5 py-1 rounded-lg transition-colors font-semibold"
@@ -1160,6 +1176,9 @@ export default function Home() {
                                 <button onClick={() => deleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-2.5 py-1 rounded-lg transition-colors font-semibold">削除</button>
                               </div>
                             )}
+                            {/* ミニ工程表 */}
+                            <MiniGantt task={task} />
+
                             {/* サブタスク一覧 */}
                             <div>
                               <p className="text-xs font-semibold text-gray-400 mb-2">サブタスク</p>
@@ -1266,7 +1285,7 @@ export default function Home() {
                                             </button>
                                           ) : (
                                             <button
-                                              onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); setEditingSubtaskDueDate(sub.due_date ?? ""); }}
+                                              onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); setEditingSubtaskDueDate(sub.due_date ?? ""); setEditingSubtaskStartDate(sub.start_date ?? ""); }}
                                               className="text-xs text-gray-400 hover:text-blue-400 transition-colors shrink-0"
                                             >
                                               編集
@@ -1325,9 +1344,18 @@ export default function Home() {
                                 </select>
                                 <input
                                   type="date"
+                                  value={newSubtaskStartDates[task.id] ?? ""}
+                                  onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })}
+                                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  title="開始日"
+                                />
+                                <span className="text-[10px] text-gray-400">〜</span>
+                                <input
+                                  type="date"
                                   value={newSubtaskDueDates[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })}
                                   className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  title="締切日"
                                 />
                                 <button
                                   onClick={() => addSubtask(task.id)}
@@ -1806,6 +1834,116 @@ function ClientComboBox({
         </div>
       )}
       {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
+    </div>
+  );
+}
+
+// ミニ工程表（タスク展開時に表示）
+function MiniGantt({ task }: { task: Task }) {
+  // 全日付を収集
+  const allDates: string[] = [];
+  if (task.start_date) allDates.push(task.start_date);
+  if (task.due_date) allDates.push(task.due_date);
+  task.subtasks.forEach((s) => {
+    if (s.start_date) allDates.push(s.start_date);
+    if (s.due_date) allDates.push(s.due_date);
+  });
+
+  if (allDates.length === 0) return null;
+
+  // 日付範囲を計算（前後1日余裕）
+  const sorted = allDates.sort();
+  const minDate = new Date(sorted[0]);
+  const maxDate = new Date(sorted[sorted.length - 1]);
+  minDate.setDate(minDate.getDate() - 1);
+  maxDate.setDate(maxDate.getDate() + 1);
+
+  const totalDays = Math.max(Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)), 3);
+
+  // 日付ヘッダー生成
+  const dayHeaders: { label: string; date: Date; isWeekend: boolean }[] = [];
+  for (let i = 0; i <= totalDays; i++) {
+    const d = new Date(minDate);
+    d.setDate(d.getDate() + i);
+    const dow = d.getDay();
+    dayHeaders.push({
+      label: `${d.getMonth() + 1}/${d.getDate()}`,
+      date: d,
+      isWeekend: dow === 0 || dow === 6,
+    });
+  }
+
+  const dayToPos = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return Math.max(0, (d.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const renderBar = (start: string | null, end: string | null, color: string, completed: boolean) => {
+    if (!start && !end) return null;
+    const s = start ? dayToPos(start) : end ? dayToPos(end) - 0.5 : 0;
+    const e = end ? dayToPos(end) : start ? dayToPos(start) + 0.5 : 0;
+    const left = (s / totalDays) * 100;
+    const width = Math.max(((e - s) / totalDays) * 100, 1.5);
+    return (
+      <div
+        className={`absolute top-1 h-4 rounded-full ${completed ? "opacity-40" : ""}`}
+        style={{ left: `${left}%`, width: `${width}%`, backgroundColor: color }}
+      />
+    );
+  };
+
+  // 今日の位置
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayPos = ((today.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24) / totalDays) * 100;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-3 mb-3">
+      <p className="text-[10px] font-semibold text-gray-400 mb-2 uppercase tracking-wide">工程表</p>
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: Math.max(totalDays * 32, 300) }}>
+          {/* 日付ヘッダー */}
+          <div className="flex border-b border-gray-100 mb-1">
+            <div className="w-28 shrink-0" />
+            <div className="flex-1 flex relative">
+              {dayHeaders.map((d, i) => (
+                <div
+                  key={i}
+                  className={`text-center text-[9px] flex-1 py-0.5 ${d.isWeekend ? "bg-gray-50 text-gray-300" : "text-gray-400"}`}
+                >
+                  {d.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* タスク本体のバー */}
+          <div className="flex items-center mb-0.5">
+            <div className="w-28 shrink-0 text-xs font-semibold text-gray-700 truncate pr-2">{task.title}</div>
+            <div className="flex-1 relative h-6 bg-gray-50 rounded">
+              {renderBar(task.start_date, task.due_date, "#3b82f6", false)}
+              {todayPos > 0 && todayPos < 100 && (
+                <div className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10" style={{ left: `${todayPos}%` }} />
+              )}
+            </div>
+          </div>
+
+          {/* サブタスクのバー */}
+          {task.subtasks.map((sub) => (
+            <div key={sub.id} className="flex items-center mb-0.5">
+              <div className={`w-28 shrink-0 text-[11px] truncate pr-2 pl-3 ${sub.is_completed ? "text-gray-300 line-through" : "text-gray-500"}`}>
+                {sub.title}
+              </div>
+              <div className="flex-1 relative h-5 bg-gray-50/50 rounded">
+                {renderBar(sub.start_date, sub.due_date, sub.is_completed ? "#9ca3af" : "#60a5fa", sub.is_completed)}
+                {todayPos > 0 && todayPos < 100 && (
+                  <div className="absolute top-0 bottom-0 w-0.5 bg-red-400/30 z-10" style={{ left: `${todayPos}%` }} />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
