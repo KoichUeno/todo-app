@@ -12,6 +12,7 @@ type Client = {
   representative: string;
   fiscal_month: string;
   note: string;
+  client_code: string;
 };
 
 const CLIENT_TYPES = ["企業", "資産家", "その他"];
@@ -36,6 +37,7 @@ export default function ClientsPage() {
   const [newRepresentative, setNewRepresentative] = useState("");
   const [newFiscalMonth, setNewFiscalMonth] = useState("");
   const [newNote, setNewNote] = useState("");
+  const [newClientCode, setNewClientCode] = useState("");
 
   // 編集フォーム
   const [editName, setEditName] = useState("");
@@ -44,6 +46,7 @@ export default function ClientsPage() {
   const [editRepresentative, setEditRepresentative] = useState("");
   const [editFiscalMonth, setEditFiscalMonth] = useState("");
   const [editNote, setEditNote] = useState("");
+  const [editClientCode, setEditClientCode] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -62,12 +65,12 @@ export default function ClientsPage() {
     const res = await fetch("/api/clients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, client_type: newType, head_office: newHeadOffice, representative: newRepresentative, fiscal_month: newFiscalMonth, note: newNote }),
+      body: JSON.stringify({ name: newName, client_type: newType, head_office: newHeadOffice, representative: newRepresentative, fiscal_month: newFiscalMonth, note: newNote, client_code: newClientCode }),
     });
     if (res.ok) {
       const c = await res.json();
       setClients((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name, "ja")));
-      setNewName(""); setNewType(""); setNewHeadOffice(""); setNewRepresentative(""); setNewFiscalMonth(""); setNewNote("");
+      setNewName(""); setNewType(""); setNewHeadOffice(""); setNewRepresentative(""); setNewFiscalMonth(""); setNewNote(""); setNewClientCode("");
       setShowAdd(false);
     }
   };
@@ -77,7 +80,7 @@ export default function ClientsPage() {
     const res = await fetch("/api/clients", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingClient.id, name: editName, client_type: editType, head_office: editHeadOffice, representative: editRepresentative, fiscal_month: editFiscalMonth, note: editNote }),
+      body: JSON.stringify({ id: editingClient.id, name: editName, client_type: editType, head_office: editHeadOffice, representative: editRepresentative, fiscal_month: editFiscalMonth, note: editNote, client_code: editClientCode }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -95,7 +98,7 @@ export default function ClientsPage() {
   const startEdit = (c: Client) => {
     setEditingClient(c);
     setEditName(c.name); setEditType(c.client_type || ""); setEditHeadOffice(c.head_office || "");
-    setEditRepresentative(c.representative || ""); setEditFiscalMonth(c.fiscal_month || ""); setEditNote(c.note || "");
+    setEditRepresentative(c.representative || ""); setEditFiscalMonth(c.fiscal_month || ""); setEditNote(c.note || ""); setEditClientCode(c.client_code || "");
     setExpandedId(c.id);
   };
 
@@ -128,7 +131,10 @@ export default function ClientsPage() {
         {showAdd && (
           <div className="bg-white rounded-xl border border-blue-200 p-4 mb-4 flex flex-col gap-2">
             <p className="text-sm font-semibold text-gray-700">新規クライアント登録</p>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="クライアント名 *" className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            <div className="flex gap-2 flex-wrap">
+              <input value={newClientCode} onChange={(e) => setNewClientCode(e.target.value)} placeholder="法人番号（13桁）" className="w-40 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="クライアント名 *" className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
             <div className="flex gap-2 flex-wrap">
               <select value={newType} onChange={(e) => setNewType(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">顧客区分</option>
@@ -155,6 +161,7 @@ export default function ClientsPage() {
             <div key={c.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
                 <div className="flex items-center gap-2">
+                  {c.client_code && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{c.client_code}</span>}
                   <p className="text-sm font-semibold text-gray-800">{c.name}</p>
                   {typeBadge(c.client_type)}
                 </div>
@@ -169,7 +176,10 @@ export default function ClientsPage() {
                 <div className="border-t border-gray-50 px-4 py-3">
                   {editingClient?.id === c.id ? (
                     <div className="flex flex-col gap-2">
-                      <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="クライアント名 *" className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                      <div className="flex gap-2 flex-wrap">
+                        <input value={editClientCode} onChange={(e) => setEditClientCode(e.target.value)} placeholder="法人番号（13桁）" className="w-40 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                        <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="クライアント名 *" className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                      </div>
                       <div className="flex gap-2 flex-wrap">
                         <select value={editType} onChange={(e) => setEditType(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
                           <option value="">顧客区分</option>
