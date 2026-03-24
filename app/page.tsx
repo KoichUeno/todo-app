@@ -164,6 +164,8 @@ export default function Home() {
 
   const [filterCategory, setFilterCategory] = useState("");
   const [filterClientType, setFilterClientType] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
+  const [filterClientName, setFilterClientName] = useState("");
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateSubtasksMap, setTemplateSubtasksMap] = useState<Record<string, TemplateSubtask[]>>({});
@@ -597,10 +599,27 @@ export default function Home() {
     return t.client_type === filterClientType;
   };
 
-  const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && categoryFilter(t) && clientTypeFilter(t));
-  const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && categoryFilter(t) && clientTypeFilter(t));
-  const invoicedTasks = tasks.filter((t) => t.status === '請求済' && categoryFilter(t) && clientTypeFilter(t));
-  const collectedTasks = tasks.filter((t) => t.status === '回収済' && categoryFilter(t) && clientTypeFilter(t));
+  // 月フィルター（due_dateのYYYY-MMで判定）
+  const monthFilter = (t: Task) => {
+    if (!filterMonth) return true;
+    return t.due_date?.startsWith(filterMonth);
+  };
+
+  // クライアント名フィルター
+  const clientNameFilter = (t: Task) => {
+    if (!filterClientName) return true;
+    return t.project_name?.toLowerCase().includes(filterClientName.toLowerCase());
+  };
+
+  const allFilters = (t: Task) => categoryFilter(t) && clientTypeFilter(t) && monthFilter(t) && clientNameFilter(t);
+
+  const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && allFilters(t));
+  const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && allFilters(t));
+  const invoicedTasks = tasks.filter((t) => t.status === '請求済' && allFilters(t));
+  const collectedTasks = tasks.filter((t) => t.status === '回収済' && allFilters(t));
+
+  // 月の選択肢を生成（タスクのdue_dateから）
+  const availableMonths = [...new Set(tasks.filter(t => t.due_date).map(t => t.due_date.substring(0, 7)))].sort().reverse();
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -910,6 +929,35 @@ export default function Home() {
               {["企業", "資産家"].map((ct) => (
                 <button key={ct} onClick={() => setFilterClientType(filterClientType === ct ? "" : ct)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterClientType === ct ? "bg-blue-500 text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>{ct}</button>
               ))}
+            </div>
+            <div className="flex gap-2 flex-wrap mb-3 items-center">
+              <span className="text-[10px] text-gray-400">月:</span>
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="text-xs border border-gray-200 rounded-full px-3 py-1 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer"
+              >
+                <option value="">すべての月</option>
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>{m.replace("-", "年") + "月"}</option>
+                ))}
+              </select>
+              <span className="text-[10px] text-gray-400 ml-2">クライアント:</span>
+              <input
+                type="text"
+                value={filterClientName}
+                onChange={(e) => setFilterClientName(e.target.value)}
+                placeholder="クライアント名で絞込..."
+                className="text-xs border border-gray-200 rounded-full px-3 py-1 w-40 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              {(filterMonth || filterClientName || filterCategory || filterClientType) && (
+                <button
+                  onClick={() => { setFilterMonth(""); setFilterClientName(""); setFilterCategory(""); setFilterClientType(""); }}
+                  className="text-[10px] text-red-400 hover:text-red-600 underline ml-2"
+                >
+                  フィルタをリセット
+                </button>
+              )}
             </div>
 
             {/* ビュー切り替え */}

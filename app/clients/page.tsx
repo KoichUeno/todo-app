@@ -268,9 +268,10 @@ export default function ClientsPage() {
                               <p className="text-[10px] font-bold text-blue-500 mb-1 uppercase tracking-wide">進行中 ({active.length})</p>
                               <div className="flex flex-col gap-1">
                                 {active.map((t) => (
-                                  <div key={t.id} className="flex items-center gap-2 text-xs text-gray-700 bg-blue-50 rounded px-2 py-1">
+                                  <div key={t.id} className="flex items-center gap-2 text-xs text-gray-700 bg-blue-50 rounded px-2 py-1 cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => router.push("/")}>
                                     {t.task_number && <span className="text-[9px] bg-gray-200 text-gray-500 px-1 rounded font-mono">{t.task_number}</span>}
                                     <span>{t.title}</span>
+                                    {t.category && <span className="text-[9px] bg-purple-100 text-purple-600 px-1 py-0.5 rounded-full">{t.category}</span>}
                                     {t.due_date && <span className="text-gray-400 ml-auto">{t.due_date}</span>}
                                   </div>
                                 ))}
@@ -282,10 +283,11 @@ export default function ClientsPage() {
                               <p className="text-[10px] font-bold text-green-500 mb-1 uppercase tracking-wide flex items-center gap-1"><CheckCircle2 size={10} /> 完了済 ({completed.length})</p>
                               <div className="flex flex-col gap-1">
                                 {completed.map((t) => (
-                                  <div key={t.id} className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1">
+                                  <div key={t.id} className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => router.push("/")}>
                                     {t.task_number && <span className="text-[9px] bg-gray-200 text-gray-400 px-1 rounded font-mono">{t.task_number}</span>}
                                     <span>{t.title}</span>
                                     <span className="text-[10px] text-green-500 ml-1">{t.status}</span>
+                                    {t.category && <span className="text-[9px] bg-purple-100 text-purple-500 px-1 py-0.5 rounded-full">{t.category}</span>}
                                     {t.due_date && <span className="text-gray-300 ml-auto">{t.due_date}</span>}
                                   </div>
                                 ))}
