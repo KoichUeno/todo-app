@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
@@ -938,33 +938,102 @@ export default function Home() {
               <ProjectView activeTasks={activeTasks} onToggleComplete={toggleCompleteTask} onDelete={deleteTask} onGenerate={generateMonthlyTask} />
             )}
 
-            {/* 進行中タスク一覧 */}
+            {/* 進行中タスク一覧（テーブル＋展開式） */}
             {!loading && view === "list" && activeTasks.length > 0 && (
 
               <div className="mb-8">
                 <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">進行中 ({activeTasks.length})</h2>
-                <div className="flex flex-col gap-3">
-                  {activeTasks.map((task) => (
-                    <div key={task.id} className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[11px] text-gray-400 border-b border-gray-100 bg-gray-50">
+                        <th className="text-left py-2 px-3 font-semibold w-8">重要度</th>
+                        <th className="text-left py-2 px-3 font-semibold">タスク名</th>
+                        <th className="text-left py-2 px-3 font-semibold hidden sm:table-cell">クライアント</th>
+                        <th className="text-left py-2 px-3 font-semibold hidden md:table-cell">カテゴリ</th>
+                        <th className="text-left py-2 px-3 font-semibold hidden md:table-cell">責任者</th>
+                        <th className="text-left py-2 px-3 font-semibold hidden sm:table-cell">締切</th>
+                        <th className="text-left py-2 px-3 font-semibold w-16">進捗</th>
+                        <th className="text-left py-2 px-3 font-semibold w-24">ステータス</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                  {activeTasks.map((task) => {
+                    const done = task.subtasks.filter(s => s.is_completed).length;
+                    const total = task.subtasks.length;
+                    const pct = total > 0 ? Math.round((done / total) * 100) : null;
+                    const isExpanded = task.showSubtasks || editingTaskId === task.id;
+                    return (
+                    <React.Fragment key={task.id}>
+                      <tr
+                        className={`border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors ${isExpanded ? "bg-blue-50/30" : ""}`}
+                        onClick={() => toggleSubtasks(task.id)}
+                      >
+                        <td className="py-2.5 px-3">
+                          {task.importance === "最高" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold"><Circle size={7} className="fill-red-500 text-red-500" /> 最高</span>}
+                          {task.importance === "高" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full font-semibold"><Circle size={7} className="fill-orange-400 text-orange-400" /> 高</span>}
+                          {(!task.importance || task.importance === "通常" || task.importance === "中") && <span className="text-[10px] text-gray-300">通常</span>}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1.5">
+                            {task.task_number && <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-mono">{task.task_number}</span>}
+                            <span className="font-medium text-gray-800">{task.title}</span>
+                            {task.client_type === "企業" && <span className="inline-flex items-center gap-0.5 text-[9px] bg-blue-100 text-blue-600 px-1 py-0.5 rounded-full sm:hidden"><Building2 size={8} /></span>}
+                            {task.task_type === "定例" && <span className="inline-flex items-center text-[9px] bg-teal-100 text-teal-600 px-1 py-0.5 rounded-full"><CalendarDays size={8} /></span>}
+                            {task.task_type === "スポット" && <span className="inline-flex items-center text-[9px] bg-orange-100 text-orange-500 px-1 py-0.5 rounded-full"><Zap size={8} /></span>}
+                            {task.is_recurring && <span className="inline-flex items-center text-[9px] bg-purple-100 text-purple-600 px-1 py-0.5 rounded-full"><Repeat size={8} /></span>}
+                          </div>
+                          {task.important_note && <p className="text-[10px] text-orange-500 mt-0.5"><AlertTriangle size={9} className="inline" /> {task.important_note}</p>}
+                        </td>
+                        <td className="py-2.5 px-3 text-xs text-gray-500 hidden sm:table-cell">{task.project_name || "—"}</td>
+                        <td className="py-2.5 px-3 hidden md:table-cell">
+                          {task.category ? <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">{task.category}</span> : <span className="text-xs text-gray-300">—</span>}
+                        </td>
+                        <td className="py-2.5 px-3 text-xs text-gray-500 hidden md:table-cell">{task.assignee || "—"}</td>
+                        <td className="py-2.5 px-3 text-xs text-gray-500 hidden sm:table-cell">{task.due_date || "—"}</td>
+                        <td className="py-2.5 px-3">
+                          {pct !== null ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-10 bg-gray-100 rounded-full h-1.5"><div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${pct}%` }} /></div>
+                              <span className="text-[10px] text-gray-400">{done}/{total}</span>
+                            </div>
+                          ) : <span className="text-xs text-gray-300">—</span>}
+                        </td>
+                        <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={task.status || '進行中'}
+                            onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                            className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none cursor-pointer"
+                          >
+                            <option value="進行中">進行中</option>
+                            <option value="完了（未請求）">完了（未請求）</option>
+                            <option value="請求済">請求済</option>
+                            <option value="回収済">回収済</option>
+                          </select>
+                        </td>
+                      </tr>
+                      {/* 展開エリア：編集フォーム＋サブタスク＋アクション */}
+                      {isExpanded && (
+                        <tr><td colSpan={8} className="p-0">
+                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3">
+                            {/* 編集フォーム */}
                             {editingTaskId === task.id ? (
-                              <div className="flex flex-col gap-2">
+                              <div className="flex flex-col gap-2 mb-3 bg-white rounded-xl p-3 border border-blue-100">
+                                <div className="flex gap-2 flex-wrap">
                                 <input
                                   type="text"
                                   value={editingTaskTitle}
                                   onChange={(e) => setEditingTaskTitle(e.target.value)}
                                   placeholder="タスク名"
-                                  className="border border-blue-300 rounded-lg px-3 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  className="flex-1 min-w-[200px] border border-blue-300 rounded-lg px-3 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   autoFocus
                                 />
                                 <textarea
                                   value={editingTaskDescription}
                                   onChange={(e) => setEditingTaskDescription(e.target.value)}
                                   placeholder="概要（任意）"
-                                  rows={2}
-                                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                                  rows={1}
+                                  className="flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
                                 <div className="flex gap-2 flex-wrap">
                                   <select
@@ -1059,7 +1128,7 @@ export default function Home() {
                                   />
                                   <button
                                     onClick={() => saveTaskEdit(task.id)}
-                                    className="text-xs text-blue-500 hover:text-blue-700 font-semibold"
+                                    className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-3 py-1 rounded-lg transition-colors"
                                   >
                                     保存
                                   </button>
@@ -1071,148 +1140,28 @@ export default function Home() {
                                   </button>
                                 </div>
                               </div>
+                            </div>
                             ) : (
-                              <div
-                                className="cursor-pointer group"
-                                onClick={() => {
-  setEditingTaskId(task.id);
-  setEditingTaskTitle(task.title);
-  setEditingTaskDescription(task.description ?? "");
-  setEditingTaskDueDate(task.due_date ?? "");
-  setEditingTaskDataLocation(task.data_location ?? "");
-  setEditingTaskProjectName(task.project_name ?? "");
-  setEditingTaskImportance(task.importance || "通常");
-  setEditingTaskClientType(task.client_type ?? "");
-  setEditingTaskTaskType(task.task_type ?? "");
-  setEditingTaskAssignee(task.assignee ?? "");
-  setEditingTaskClientId(task.client_id ?? "");
-  const cat = task.category ?? "";
-  const isOther = cat.startsWith("その他：");
-  setEditingTaskCategory(isOther ? "その他" : cat);
-  setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                <button
+                                  onClick={() => {
+  setEditingTaskId(task.id); setEditingTaskTitle(task.title); setEditingTaskDescription(task.description ?? ""); setEditingTaskDueDate(task.due_date ?? ""); setEditingTaskDataLocation(task.data_location ?? ""); setEditingTaskProjectName(task.project_name ?? ""); setEditingTaskImportance(task.importance || "通常"); setEditingTaskClientType(task.client_type ?? ""); setEditingTaskTaskType(task.task_type ?? ""); setEditingTaskAssignee(task.assignee ?? ""); setEditingTaskClientId(task.client_id ?? "");
+  const cat = task.category ?? ""; const isOther = cat.startsWith("その他："); setEditingTaskCategory(isOther ? "その他" : cat); setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
 }}
-                              >
-                                {/* タイトル行 */}
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  {task.task_number && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{task.task_number}</span>}
-                                  <p className="font-semibold text-gray-800 group-hover:text-blue-500 transition-colors">{task.title}</p>
-                                  {task.importance === "最高" && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold"><Circle size={8} className="fill-red-500 text-red-500" /> 最高</span>
-                                  )}
-                                  {task.importance === "高" && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full font-semibold"><Circle size={8} className="fill-orange-400 text-orange-400" /> 高</span>
-                                  )}
-                                </div>
-                                {task.description && (
-                                  <p className="text-xs text-gray-500 mb-1.5">{task.description}</p>
+                                  className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2.5 py-1 rounded-lg transition-colors font-semibold"
+                                >
+                                  編集
+                                </button>
+                                {task.is_recurring && (
+                                  <button onClick={() => generateMonthlyTask(task)} className="inline-flex items-center gap-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-600 font-semibold px-2.5 py-1 rounded-lg transition-colors"><Copy size={11} /> 今月分</button>
                                 )}
-                                {/* 情報行：横並びバッジ */}
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                  {task.project_name && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md"><Folder size={10} className="text-gray-400" /> {task.project_name}</span>
-                                  )}
-                                  {task.assignee && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md"><User size={10} /> {task.assignee}</span>
-                                  )}
-                                  {task.category && (
-                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">{task.category}</span>
-                                  )}
-                                  {task.client_type === "企業" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full"><Building2 size={9} /> 企業</span>}
-                                  {task.client_type === "資産家" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full"><Crown size={9} /> 資産家</span>}
-                                  {task.client_type && !["企業","資産家"].includes(task.client_type) && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{task.client_type}</span>}
-                                  {task.task_type === "定例" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full"><CalendarDays size={9} /> 定例</span>}
-                                  {task.task_type === "スポット" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full"><Zap size={9} /> スポット</span>}
-                                  {task.is_recurring && <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold"><Repeat size={9} /> 毎月</span>}
-                                  {task.due_date && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md"><CalendarDays size={10} className="text-gray-400" /> {task.due_date}</span>
-                                  )}
-                                  {task.data_location && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md"><Database size={10} className="text-gray-400" /> {task.data_location}</span>
-                                  )}
-                                </div>
-                                {!task.project_name && !task.assignee && !task.due_date && !task.description && !task.category && (
-                                  <p className="text-xs text-gray-300 mt-1">クリックして編集</p>
-                                )}
+                                <button onClick={() => registerAsTemplate(task)} className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-700 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded-lg transition-colors font-semibold"><ClipboardList size={11} /> テンプレ登録</button>
+                                <button onClick={() => deleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-2.5 py-1 rounded-lg transition-colors font-semibold">削除</button>
                               </div>
                             )}
-                            {/* 進捗バー */}
-                            {task.subtasks.length > 0 && (() => {
-                              const done = task.subtasks.filter(s => s.is_completed).length;
-                              const total = task.subtasks.length;
-                              const pct = Math.round((done / total) * 100);
-                              return (
-                                <div className="mt-2">
-                                  <div className="flex justify-between items-center mb-1">
-                                    <span className="text-xs text-gray-400">進捗</span>
-                                    <span className="text-xs font-semibold text-blue-500">{pct}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                    <div
-                                      className="bg-blue-400 h-1.5 rounded-full transition-all duration-300"
-                                      style={{ width: `${pct}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-                            {task.subtasks.length > 0 && (
-                              <button
-                                onClick={() => toggleSubtasks(task.id)}
-                                className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 font-semibold px-3 py-1 rounded-full transition-colors"
-                              >
-                                {task.showSubtasks ? "閉じる" : `${task.subtasks.filter(s => s.is_completed).length}/${task.subtasks.length}`}
-                              </button>
-                            )}
-                            {!task.showSubtasks && (
-                              <button
-                                onClick={() => toggleSubtasks(task.id)}
-                                className="text-xs bg-gray-100 hover:bg-blue-100 text-gray-500 hover:text-blue-600 font-semibold px-3 py-1 rounded-full transition-colors"
-                              >
-                                ＋ サブタスク
-                              </button>
-                            )}
-                            {task.is_recurring && (
-                              <button
-                                onClick={() => generateMonthlyTask(task)}
-                                className="inline-flex items-center gap-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-600 font-semibold px-3 py-1 rounded-full transition-colors"
-                                title="今月分のタスクを複製作成"
-                              >
-                                <Copy size={11} /> 今月分
-                              </button>
-                            )}
-                            <button
-                              onClick={() => registerAsTemplate(task)}
-                              className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-700 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded-full transition-colors font-semibold"
-                              title="テンプレートに登録"
-                            >
-                              <ClipboardList size={11} /> テンプレ登録
-                            </button>
-                            <select
-                              value={task.status || '進行中'}
-                              onChange={(e) => changeTaskStatus(task.id, e.target.value)}
-                              className="text-xs border border-gray-200 rounded-full px-2 py-1 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer"
-                            >
-                              <option value="進行中">進行中</option>
-                              <option value="完了（未請求）">完了（未請求）</option>
-                              <option value="請求済">請求済</option>
-                              <option value="回収済">回収済</option>
-                            </select>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="text-xs bg-red-100 hover:bg-red-200 text-red-500 font-semibold px-3 py-1 rounded-full transition-colors"
-                            >
-                              削除
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* サブタスク一覧 */}
-                      {task.showSubtasks && (
-                        <div className="border-t border-gray-100 px-4 py-3">
-                          <p className="text-xs font-semibold text-gray-400 mb-2">サブタスク</p>
+                            {/* サブタスク一覧 */}
+                            <div>
+                              <p className="text-xs font-semibold text-gray-400 mb-2">サブタスク</p>
                           <DragDropContext onDragEnd={(result) => reorderSubtasks(task.id, result)}>
                             <Droppable droppableId={task.id}>
                               {(provided) => (
@@ -1353,11 +1302,17 @@ export default function Home() {
                                 追加
                               </button>
                             </div>
+                            </div>
                           </div>
-                        </div>
+                          </div>
+                        </td>
+                      </tr>
                       )}
-                    </div>
-                  ))}
+                    </React.Fragment>
+                    );
+                  })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
