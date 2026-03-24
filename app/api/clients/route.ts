@@ -17,11 +17,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { name, client_type, head_office, representative, fiscal_month, note, client_code } = body
+  const { name, client_type, head_office, representative, fiscal_month, note, client_code, branch_number } = body
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
   const { data, error } = await supabase
     .from('clients')
-    .insert({ name, client_type, head_office, representative, fiscal_month, note, client_code })
+    .insert({ name, client_type, head_office, representative, fiscal_month, note, client_code, branch_number })
     .select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })

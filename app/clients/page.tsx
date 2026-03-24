@@ -13,6 +13,7 @@ type Client = {
   fiscal_month: string;
   note: string;
   client_code: string;
+  branch_number: string;
 };
 
 type Task = {
@@ -49,6 +50,7 @@ export default function ClientsPage() {
   const [newFiscalMonth, setNewFiscalMonth] = useState("");
   const [newNote, setNewNote] = useState("");
   const [newClientCode, setNewClientCode] = useState("");
+  const [newBranchNumber, setNewBranchNumber] = useState("");
 
   // 編集フォーム
   const [editName, setEditName] = useState("");
@@ -58,6 +60,7 @@ export default function ClientsPage() {
   const [editFiscalMonth, setEditFiscalMonth] = useState("");
   const [editNote, setEditNote] = useState("");
   const [editClientCode, setEditClientCode] = useState("");
+  const [editBranchNumber, setEditBranchNumber] = useState("");
 
   // クライアント別タスク
   const [clientTasks, setClientTasks] = useState<Record<string, Task[]>>({});
@@ -95,12 +98,12 @@ export default function ClientsPage() {
     const res = await fetch("/api/clients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, client_type: newType, head_office: newHeadOffice, representative: newRepresentative, fiscal_month: newFiscalMonth, note: newNote, client_code: newClientCode }),
+      body: JSON.stringify({ name: newName, client_type: newType, head_office: newHeadOffice, representative: newRepresentative, fiscal_month: newFiscalMonth, note: newNote, client_code: newClientCode, branch_number: newBranchNumber }),
     });
     if (res.ok) {
       const c = await res.json();
       setClients((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name, "ja")));
-      setNewName(""); setNewType(""); setNewHeadOffice(""); setNewRepresentative(""); setNewFiscalMonth(""); setNewNote(""); setNewClientCode("");
+      setNewName(""); setNewType(""); setNewHeadOffice(""); setNewRepresentative(""); setNewFiscalMonth(""); setNewNote(""); setNewClientCode(""); setNewBranchNumber("");
       setShowAdd(false);
     }
   };
@@ -110,7 +113,7 @@ export default function ClientsPage() {
     const res = await fetch("/api/clients", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingClient.id, name: editName, client_type: editType, head_office: editHeadOffice, representative: editRepresentative, fiscal_month: editFiscalMonth, note: editNote, client_code: editClientCode }),
+      body: JSON.stringify({ id: editingClient.id, name: editName, client_type: editType, head_office: editHeadOffice, representative: editRepresentative, fiscal_month: editFiscalMonth, note: editNote, client_code: editClientCode, branch_number: editBranchNumber }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -128,7 +131,7 @@ export default function ClientsPage() {
   const startEdit = (c: Client) => {
     setEditingClient(c);
     setEditName(c.name); setEditType(c.client_type || ""); setEditHeadOffice(c.head_office || "");
-    setEditRepresentative(c.representative || ""); setEditFiscalMonth(c.fiscal_month || ""); setEditNote(c.note || ""); setEditClientCode(c.client_code || "");
+    setEditRepresentative(c.representative || ""); setEditFiscalMonth(c.fiscal_month || ""); setEditNote(c.note || ""); setEditClientCode(c.client_code || ""); setEditBranchNumber(c.branch_number || "");
     setExpandedId(c.id);
   };
 
@@ -162,7 +165,12 @@ export default function ClientsPage() {
           <div className="bg-white rounded-xl border border-blue-200 p-4 mb-4 flex flex-col gap-2">
             <p className="text-sm font-semibold text-gray-700">新規クライアント登録</p>
             <div className="flex gap-2 flex-wrap">
-              <input value={newClientCode} onChange={(e) => setNewClientCode(e.target.value)} placeholder="法人番号（13桁）" className="w-40 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              {newType !== "資産家" && (
+                <input value={newClientCode} onChange={(e) => setNewClientCode(e.target.value)} placeholder="法人番号（13桁）" className="w-40 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              )}
+              {newType === "資産家" && (
+                <input value={newBranchNumber} onChange={(e) => setNewBranchNumber(e.target.value)} placeholder="枝番号" className="w-24 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              )}
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="クライアント名 *" className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -192,6 +200,7 @@ export default function ClientsPage() {
               <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => { const next = expandedId === c.id ? null : c.id; setExpandedId(next); if (next) fetchClientTasks(c.id); }}>
                 <div className="flex items-center gap-2">
                   {c.client_code && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{c.client_code}</span>}
+                  {c.branch_number && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-mono">枝{c.branch_number}</span>}
                   <p className="text-sm font-semibold text-gray-800">{c.name}</p>
                   {typeBadge(c.client_type)}
                 </div>
@@ -207,7 +216,12 @@ export default function ClientsPage() {
                   {editingClient?.id === c.id ? (
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2 flex-wrap">
-                        <input value={editClientCode} onChange={(e) => setEditClientCode(e.target.value)} placeholder="法人番号（13桁）" className="w-40 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                        {editType !== "資産家" && (
+                          <input value={editClientCode} onChange={(e) => setEditClientCode(e.target.value)} placeholder="法人番号（13桁）" className="w-40 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                        )}
+                        {editType === "資産家" && (
+                          <input value={editBranchNumber} onChange={(e) => setEditBranchNumber(e.target.value)} placeholder="枝番号" className="w-24 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                        )}
                         <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="クライアント名 *" className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                       </div>
                       <div className="flex gap-2 flex-wrap">
