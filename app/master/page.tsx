@@ -38,6 +38,8 @@ export default function MasterPage() {
   const [tab, setTab] = useState<"users" | "templates">("users");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>("");
+  const [userFilter, setUserFilter] = useState("");
+  const [templateFilter, setTemplateFilter] = useState("");
 
   // ユーザー
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -367,11 +369,18 @@ export default function MasterPage() {
             )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-sm font-bold text-gray-700">登録ユーザー一覧</h2>
+                <div className="flex gap-1.5 flex-wrap">
+                  {["", "管理者", "IT担当", "経営者", "担当者"].map((role) => (
+                    <button key={role} onClick={() => setUserFilter(userFilter === role ? "" : role)} className={`text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors ${userFilter === role ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                      {role || "すべて"}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="divide-y divide-gray-50">
-                {profiles.map((profile) => (
+                {profiles.filter((p) => !userFilter || p.role === userFilter || (!p.role && userFilter === "担当者")).map((profile) => (
                   <div key={profile.id} className="px-6 py-4">
                     {editingProfile?.id === profile.id ? (
                       <div className="flex flex-col gap-2">
@@ -502,9 +511,20 @@ export default function MasterPage() {
               </div>
             </div>
 
+            {/* テンプレート検索フィルタ */}
+            <div className="mb-3">
+              <input
+                type="text"
+                value={templateFilter}
+                onChange={(e) => setTemplateFilter(e.target.value)}
+                placeholder="テンプレート名で検索..."
+                className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+              />
+            </div>
+
             {/* テンプレート一覧 */}
             <div className="flex flex-col gap-3">
-              {templates.map((template) => {
+              {templates.filter((t) => !templateFilter || t.title.toLowerCase().includes(templateFilter.toLowerCase())).map((template) => {
                 const isExpanded = expandedTemplate === template.id;
                 const subs = templateSubtasksMap[template.id] || [];
                 return (
