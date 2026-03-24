@@ -110,6 +110,7 @@ export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
   const [newImportantNote, setNewImportantNote] = useState("");
   const [newAssignee, setNewAssignee] = useState("");
@@ -369,11 +370,12 @@ export default function Home() {
     const res = await fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null, client_id: newClientId || null }),
+      body: JSON.stringify({ title: newTitle, description: newDescription || null, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null, client_id: newClientId || null }),
     });
     const newTask = await res.json();
     setTasks((prev) => [{ ...newTask, subtasks: [], showSubtasks: false }, ...prev]);
     setNewTitle("");
+    setNewDescription("");
     setNewDueDate("");
     setNewImportantNote("");
     setNewAssignee("");
@@ -670,7 +672,14 @@ export default function Home() {
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addTask()}
-                className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <textarea
+                placeholder="概要（任意）"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                rows={2}
+                className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
               />
               <div className="flex gap-3 mb-2">
                 <input
