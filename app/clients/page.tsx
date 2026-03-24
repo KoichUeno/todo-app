@@ -27,7 +27,7 @@ type Task = {
   project_name: string;
 };
 
-const CLIENT_TYPES = ["企業", "資産家", "一般社団法人", "その他", "自社"];
+const CLIENT_TYPES = ["企業", "資産家", "一般社団法人", "個人事業", "その他", "自社"];
 
 export default function ClientsPage() {
   const router = useRouter();
@@ -139,6 +139,7 @@ export default function ClientsPage() {
     if (t === "企業") return <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full"><Building2 size={9} /> 企業</span>;
     if (t === "資産家") return <span className="inline-flex items-center gap-0.5 text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full"><Crown size={9} /> 資産家</span>;
     if (t === "一般社団法人") return <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">社 一般社団法人</span>;
+    if (t === "個人事業") return <span className="text-[10px] bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full">個人事業</span>;
     if (t === "自社") return <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">自社</span>;
     return t ? <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{t}</span> : null;
   };

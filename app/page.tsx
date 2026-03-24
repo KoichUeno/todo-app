@@ -688,6 +688,7 @@ export default function Home() {
                   <option value="企業">企業</option>
                   <option value="資産家">資産家</option>
                   <option value="一般社団法人">一般社団法人</option>
+                  <option value="個人事業">個人事業</option>
                   <option value="その他">その他</option>
                   <option value="自社">自社</option>
                 </select>
