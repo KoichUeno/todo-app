@@ -26,12 +26,12 @@ type Task = {
   subtasks: Subtask[];
 };
 
-const IMPORTANCE_ORDER: Record<string, number> = { 最高: 0, 高: 1, 中: 2, 低: 3 };
+const IMPORTANCE_ORDER: Record<string, number> = { 最高: 0, 高: 1, 通常: 2, 中: 2, 低: 3 };
 
 const importanceBadge = (imp: string) => {
   if (imp === "最高") return <span className="inline-flex items-center gap-0.5 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold"><Circle size={7} className="fill-red-500 text-red-500" /> 最高</span>;
   if (imp === "高") return <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full font-semibold"><Circle size={7} className="fill-orange-400 text-orange-400" /> 高</span>;
-  if (imp === "中") return <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">中</span>;
+  if (imp === "通常" || imp === "中") return <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">通常</span>;
   return <span className="text-[10px] bg-gray-50 text-gray-400 px-1.5 py-0.5 rounded-full">低</span>;
 };
 
@@ -251,8 +251,8 @@ export default function Dashboard() {
                         <th className="text-left pb-2 font-semibold">タスク名</th>
                         <th className="text-left pb-2 font-semibold">クライアント</th>
                         <th className="text-left pb-2 font-semibold">顧客区分</th>
-                        <th className="text-left pb-2 font-semibold">案件区分</th>
-                        <th className="text-left pb-2 font-semibold">担当者</th>
+                        <th className="text-left pb-2 font-semibold">頻度</th>
+                        <th className="text-left pb-2 font-semibold">責任者</th>
                         <th className="text-left pb-2 font-semibold">締切</th>
                         <th className="text-left pb-2 font-semibold">進捗</th>
                       </tr>

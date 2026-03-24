@@ -125,7 +125,7 @@ export default function Home() {
   const [editingTaskDueDate, setEditingTaskDueDate] = useState("");
   const [editingTaskDataLocation, setEditingTaskDataLocation] = useState("");
   const [editingTaskProjectName, setEditingTaskProjectName] = useState("");
-  const [editingTaskImportance, setEditingTaskImportance] = useState("中");
+  const [editingTaskImportance, setEditingTaskImportance] = useState("通常");
   const [editingTaskClientType, setEditingTaskClientType] = useState("");
   const [editingTaskTaskType, setEditingTaskTaskType] = useState("");
   const [editingTaskAssignee, setEditingTaskAssignee] = useState("");
@@ -142,7 +142,7 @@ export default function Home() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newClientId, setNewClientId] = useState("");
   const [newIsRecurring, setNewIsRecurring] = useState(false);
-  const [newImportance, setNewImportance] = useState("中");
+  const [newImportance, setNewImportance] = useState("通常");
   const [newClientType, setNewClientType] = useState("");
   const [newTaskType, setNewTaskType] = useState("");
   const [newDataLocation, setNewDataLocation] = useState("");
@@ -367,7 +367,7 @@ export default function Home() {
     setNewAssignee("");
     setNewProjectName("");
     setNewIsRecurring(false);
-    setNewImportance("中");
+    setNewImportance("通常");
     setNewClientType("");
     setNewTaskType("");
     setNewDataLocation("");
@@ -646,7 +646,7 @@ export default function Home() {
                   onChange={(e) => setNewAssignee(e.target.value)}
                   className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                 >
-                  <option value="">担当者を選択</option>
+                  <option value="">責任者を選択</option>
                   {profiles.map((p) => (
                     <option key={p.id} value={p.name}>{p.name}</option>
                   ))}
@@ -674,10 +674,9 @@ export default function Home() {
                   onChange={(e) => setNewImportance(e.target.value)}
                   className="w-28 border border-gray-200 rounded-lg px-2 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm"
                 >
-                  <option value="最高">🔴 最高</option>
-                  <option value="高">🟠 高</option>
-                  <option value="中">中</option>
-                  <option value="低">低</option>
+                  <option value="最高">最高</option>
+                  <option value="高">高</option>
+                  <option value="通常">通常</option>
                 </select>
                 <select
                   value={newClientType}
@@ -697,7 +696,7 @@ export default function Home() {
                   onChange={(e) => setNewTaskType(e.target.value)}
                   className="w-24 border border-gray-200 rounded-lg px-2 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm"
                 >
-                  <option value="">案件区分</option>
+                  <option value="">頻度</option>
                   <option value="定例">📅 定例</option>
                   <option value="スポット">⚡ スポット</option>
                 </select>
@@ -869,7 +868,7 @@ export default function Home() {
                         onChange={(e) => setNewTplSubtaskAssignee((p) => ({ ...p, [selectedTemplateId]: e.target.value }))}
                         className="w-24 border border-gray-200 rounded px-1 py-1 text-xs text-gray-600 bg-white focus:outline-none"
                       >
-                        <option value="">担当者</option>
+                        <option value="">責任者</option>
                         {profiles.map((p) => (
                           <option key={p.id} value={p.name}>{p.name}</option>
                         ))}
@@ -989,7 +988,7 @@ export default function Home() {
                                     onChange={(e) => setEditingTaskAssignee(e.target.value)}
                                     className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   >
-                                    <option value="">担当者</option>
+                                    <option value="">責任者</option>
                                     {profiles.map((p) => (
                                       <option key={p.id} value={p.name}>{p.name}</option>
                                     ))}
@@ -1001,8 +1000,7 @@ export default function Home() {
                                   >
                                     <option value="最高">最高</option>
                                     <option value="高">高</option>
-                                    <option value="中">中</option>
-                                    <option value="低">低</option>
+                                    <option value="通常">通常</option>
                                   </select>
                                   <select
                                     value={editingTaskClientType}
@@ -1021,7 +1019,7 @@ export default function Home() {
                                     onChange={(e) => setEditingTaskTaskType(e.target.value)}
                                     className="w-24 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   >
-                                    <option value="">案件区分</option>
+                                    <option value="">頻度</option>
                                     <option value="定例">定例</option>
                                     <option value="スポット">スポット</option>
                                   </select>
@@ -1083,7 +1081,7 @@ export default function Home() {
   setEditingTaskDueDate(task.due_date ?? "");
   setEditingTaskDataLocation(task.data_location ?? "");
   setEditingTaskProjectName(task.project_name ?? "");
-  setEditingTaskImportance(task.importance || "中");
+  setEditingTaskImportance(task.importance || "通常");
   setEditingTaskClientType(task.client_type ?? "");
   setEditingTaskTaskType(task.task_type ?? "");
   setEditingTaskAssignee(task.assignee ?? "");
@@ -1278,7 +1276,7 @@ export default function Home() {
                                                 onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
                                                 className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                                               >
-                                                <option value="">担当者を選択</option>
+                                                <option value="">責任者を選択</option>
                                                 {profiles.map((p) => (
                                                   <option key={p.id} value={p.name}>{p.name}</option>
                                                 ))}
@@ -1345,7 +1343,7 @@ export default function Home() {
                                 onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
                                 className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                               >
-                                <option value="">担当者</option>
+                                <option value="">責任者</option>
                                 {profiles.map((p) => (
                                   <option key={p.id} value={p.name}>{p.name}</option>
                                 ))}
@@ -1678,7 +1676,7 @@ function SidebarByAssignee({ activeTasks }: { activeTasks: Task[] }) {
   if (sortedKeys.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">担当者別</h2>
+        <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">責任者別</h2>
         <p className="text-xs text-gray-300 text-center py-4">未完了タスクなし</p>
       </div>
     );
@@ -1686,7 +1684,7 @@ function SidebarByAssignee({ activeTasks }: { activeTasks: Task[] }) {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-      <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">担当者別</h2>
+      <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">責任者別</h2>
       <div className="flex flex-col gap-3">
         {sortedKeys.map((assignee) => {
           const tasks = groups[assignee];
