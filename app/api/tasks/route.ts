@@ -15,11 +15,11 @@ export async function GET() {
 // タスクを追加
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { title, description, due_date, important_note, assignee, project_name, is_recurring, importance } = body
+  const { title, description, due_date, important_note, assignee, project_name, is_recurring, importance, category } = body
 
   const { data, error } = await supabase
     .from('tasks')
-    .insert({ title, description, due_date, important_note, assignee, project_name, is_recurring, importance })
+    .insert({ title, description, due_date, important_note, assignee, project_name, is_recurring, importance, category })
     .select()
     .single()
 

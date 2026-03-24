@@ -66,6 +66,7 @@ type Task = {
   task_type: string;
   status: string;
   data_location: string;
+  category: string;
   subtasks: Subtask[];
   showSubtasks: boolean;
 };
@@ -130,6 +131,14 @@ export default function Home() {
   const [newClientType, setNewClientType] = useState("");
   const [newTaskType, setNewTaskType] = useState("");
   const [newDataLocation, setNewDataLocation] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newCategoryOther, setNewCategoryOther] = useState("");
+
+  const [editingTaskCategory, setEditingTaskCategory] = useState("");
+  const [editingTaskCategoryOther, setEditingTaskCategoryOther] = useState("");
+
+  const [filterCategory, setFilterCategory] = useState("");
+
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateSubtasksMap, setTemplateSubtasksMap] = useState<Record<string, TemplateSubtask[]>>({});
   const [newTplSubtaskTitle, setNewTplSubtaskTitle] = useState<Record<string, string>>({});
@@ -326,7 +335,7 @@ export default function Home() {
     const res = await fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null }),
+      body: JSON.stringify({ title: newTitle, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null }),
     });
     const newTask = await res.json();
     setTasks((prev) => [{ ...newTask, subtasks: [], showSubtasks: false }, ...prev]);
@@ -340,6 +349,8 @@ export default function Home() {
     setNewClientType("");
     setNewTaskType("");
     setNewDataLocation("");
+    setNewCategory("");
+    setNewCategoryOther("");
   };
 
   // タスクを完了にする／完了を取り消す
@@ -381,10 +392,11 @@ export default function Home() {
         client_type: editingTaskClientType || null,
         task_type: editingTaskTaskType || null,
         assignee: editingTaskAssignee || null,
+        category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) || null,
       }),
     });
     setTasks(tasks.map((t) =>
-      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee } : t
+      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) } : t
     ));
     setEditingTaskId(null);
   };
@@ -501,10 +513,23 @@ export default function Home() {
 
   const isAdmin = !currentUser || currentUser.role === '管理者' || currentUser.role === 'admin';
 
-  const activeTasks = tasks.filter((t) => t.status === '進行中' || (!t.status && !t.is_completed));
-  const completedTasks = tasks.filter((t) => t.status === '完了（未請求）' || (t.is_completed && !t.status));
-  const invoicedTasks = tasks.filter((t) => t.status === '請求済');
-  const collectedTasks = tasks.filter((t) => t.status === '回収済');
+  const CATEGORIES = ["総務", "帳簿入力", "申告", "コンサルティング", "その他"];
+
+  // カテゴリーの実際の保存値を取得（「その他」の場合は自由入力値）
+  const resolveCategory = (cat: string, other: string) =>
+    cat === "その他" && other.trim() ? `その他：${other.trim()}` : cat;
+
+  // カテゴリーフィルター適用
+  const categoryFilter = (t: Task) => {
+    if (!filterCategory) return true;
+    if (filterCategory === "その他") return t.category?.startsWith("その他") || false;
+    return t.category === filterCategory;
+  };
+
+  const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && categoryFilter(t));
+  const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && categoryFilter(t));
+  const invoicedTasks = tasks.filter((t) => t.status === '請求済' && categoryFilter(t));
+  const collectedTasks = tasks.filter((t) => t.status === '回収済' && categoryFilter(t));
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -624,13 +649,30 @@ export default function Home() {
                   className="flex-1 border border-orange-200 rounded-lg px-4 py-2 text-orange-700 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder-orange-300"
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
+                <select
+                  value={newCategory}
+                  onChange={(e) => { setNewCategory(e.target.value); setNewCategoryOther(""); }}
+                  className="border border-purple-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-300 text-sm"
+                >
+                  <option value="">カテゴリー（任意）</option>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {newCategory === "その他" && (
+                  <input
+                    type="text"
+                    value={newCategoryOther}
+                    onChange={(e) => setNewCategoryOther(e.target.value)}
+                    placeholder="カテゴリーを入力"
+                    className="border border-purple-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300 text-sm"
+                  />
+                )}
                 <input
                   type="text"
                   placeholder="データ保存場所（任意）"
                   value={newDataLocation}
                   onChange={(e) => setNewDataLocation(e.target.value)}
-                  className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-4 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
                 <button
                   onClick={addTask}
@@ -771,6 +813,25 @@ export default function Home() {
               )}
             </div>
 
+            {/* カテゴリーフィルター */}
+            <div className="flex gap-2 flex-wrap mb-3">
+              <button
+                onClick={() => setFilterCategory("")}
+                className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterCategory ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+              >
+                すべて
+              </button>
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setFilterCategory(filterCategory === c ? "" : c)}
+                  className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterCategory === c ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-600 hover:bg-purple-100"}`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+
             {/* ビュー切り替え */}
             <div className="flex gap-2 mb-4">
               <button
@@ -886,6 +947,25 @@ export default function Home() {
                                   </select>
                                 </div>
                                 <div className="flex gap-2 items-center flex-wrap">
+                                  <select
+                                    value={editingTaskCategory}
+                                    onChange={(e) => { setEditingTaskCategory(e.target.value); setEditingTaskCategoryOther(""); }}
+                                    className="w-36 border border-purple-200 rounded-lg px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                                  >
+                                    <option value="">カテゴリー</option>
+                                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                  {editingTaskCategory === "その他" && (
+                                    <input
+                                      type="text"
+                                      value={editingTaskCategoryOther}
+                                      onChange={(e) => setEditingTaskCategoryOther(e.target.value)}
+                                      placeholder="カテゴリー入力"
+                                      className="w-32 border border-purple-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                                    />
+                                  )}
+                                </div>
+                                <div className="flex gap-2 items-center flex-wrap">
                                   <input
                                     type="date"
                                     value={editingTaskDueDate}
@@ -916,7 +996,22 @@ export default function Home() {
                             ) : (
                               <div
                                 className="cursor-pointer group"
-                                onClick={() => { setEditingTaskId(task.id); setEditingTaskTitle(task.title); setEditingTaskDescription(task.description ?? ""); setEditingTaskDueDate(task.due_date ?? ""); setEditingTaskDataLocation(task.data_location ?? ""); setEditingTaskProjectName(task.project_name ?? ""); setEditingTaskImportance(task.importance || "中"); setEditingTaskClientType(task.client_type ?? ""); setEditingTaskTaskType(task.task_type ?? ""); setEditingTaskAssignee(task.assignee ?? ""); }}
+                                onClick={() => {
+  setEditingTaskId(task.id);
+  setEditingTaskTitle(task.title);
+  setEditingTaskDescription(task.description ?? "");
+  setEditingTaskDueDate(task.due_date ?? "");
+  setEditingTaskDataLocation(task.data_location ?? "");
+  setEditingTaskProjectName(task.project_name ?? "");
+  setEditingTaskImportance(task.importance || "中");
+  setEditingTaskClientType(task.client_type ?? "");
+  setEditingTaskTaskType(task.task_type ?? "");
+  setEditingTaskAssignee(task.assignee ?? "");
+  const cat = task.category ?? "";
+  const isOther = cat.startsWith("その他：");
+  setEditingTaskCategory(isOther ? "その他" : cat);
+  setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
+}}
                               >
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="font-semibold text-gray-800 group-hover:text-blue-500 transition-colors">{task.title}</p>
@@ -943,6 +1038,9 @@ export default function Home() {
                                   )}
                                   {task.project_name && (
                                     <span className="inline-flex items-center gap-0.5 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full"><Folder size={9} /> {task.project_name}</span>
+                                  )}
+                                  {task.category && (
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">{task.category}</span>
                                   )}
                                 </div>
                                 {task.description && (
