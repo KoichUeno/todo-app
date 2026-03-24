@@ -566,7 +566,8 @@ export default function Home() {
   // カテゴリーフィルター適用
   const categoryFilter = (t: Task) => {
     if (!filterCategory) return true;
-    if (filterCategory === "その他") return t.category?.startsWith("その他") || false;
+    if (!t.category) return true; // カテゴリー未設定のタスクは常に表示
+    if (filterCategory === "その他") return t.category.startsWith("その他");
     return t.category === filterCategory;
   };
 
