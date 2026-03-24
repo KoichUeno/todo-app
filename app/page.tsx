@@ -67,8 +67,19 @@ type Task = {
   status: string;
   data_location: string;
   category: string;
+  client_id: string;
   subtasks: Subtask[];
   showSubtasks: boolean;
+};
+
+type Client = {
+  id: string;
+  name: string;
+  client_type: string;
+  head_office: string;
+  representative: string;
+  fiscal_month: string;
+  note: string;
 };
 
 type Template = {
@@ -93,6 +104,7 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
   const [newImportantNote, setNewImportantNote] = useState("");
@@ -116,6 +128,7 @@ export default function Home() {
   const [editingTaskClientType, setEditingTaskClientType] = useState("");
   const [editingTaskTaskType, setEditingTaskTaskType] = useState("");
   const [editingTaskAssignee, setEditingTaskAssignee] = useState("");
+  const [editingTaskClientId, setEditingTaskClientId] = useState("");
 
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
@@ -126,6 +139,7 @@ export default function Home() {
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
 
   const [newProjectName, setNewProjectName] = useState("");
+  const [newClientId, setNewClientId] = useState("");
   const [newIsRecurring, setNewIsRecurring] = useState(false);
   const [newImportance, setNewImportance] = useState("中");
   const [newClientType, setNewClientType] = useState("");
@@ -161,6 +175,7 @@ export default function Home() {
     });
     fetchTasks();
     fetchTemplates();
+    fetchClients();
   }, []);
 
   const fetchTasks = async () => {
@@ -183,6 +198,11 @@ export default function Home() {
       const data = await res.json();
       setTemplates(Array.isArray(data) ? data : []);
     }
+  };
+
+  const fetchClients = async () => {
+    const res = await fetch('/api/clients');
+    if (res.ok) setClients(await res.json() || []);
   };
 
   const fetchTemplateSubtasks = async (templateId: string) => {
@@ -336,7 +356,7 @@ export default function Home() {
     const res = await fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null }),
+      body: JSON.stringify({ title: newTitle, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null, client_id: newClientId || null }),
     });
     const newTask = await res.json();
     setTasks((prev) => [{ ...newTask, subtasks: [], showSubtasks: false }, ...prev]);
@@ -352,6 +372,7 @@ export default function Home() {
     setNewDataLocation("");
     setNewCategory("");
     setNewCategoryOther("");
+    setNewClientId("");
   };
 
   // タスクを完了にする／完了を取り消す
@@ -394,10 +415,11 @@ export default function Home() {
         task_type: editingTaskTaskType || null,
         assignee: editingTaskAssignee || null,
         category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) || null,
+        client_id: editingTaskClientId || null,
       }),
     });
     setTasks(tasks.map((t) =>
-      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) } : t
+      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId } : t
     ));
     setEditingTaskId(null);
   };
@@ -629,13 +651,22 @@ export default function Home() {
                 </select>
               </div>
               <div className="flex gap-2 mb-2 flex-wrap">
-                <input
-                  type="text"
-                  placeholder="クライアント名（任意）"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm"
-                />
+                <select
+                  value={newClientId}
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    setNewClientId(cid);
+                    const c = clients.find((cl) => cl.id === cid);
+                    setNewProjectName(c?.name || "");
+                    if (c?.client_type) setNewClientType(c.client_type);
+                  }}
+                  className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm"
+                >
+                  <option value="">クライアント選択</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
                 <select
                   value={newImportance}
                   onChange={(e) => setNewImportance(e.target.value)}
@@ -931,13 +962,22 @@ export default function Home() {
                                   className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
                                 <div className="flex gap-2 flex-wrap">
-                                  <input
-                                    type="text"
-                                    value={editingTaskProjectName}
-                                    onChange={(e) => setEditingTaskProjectName(e.target.value)}
-                                    placeholder="クライアント名（任意）"
-                                    className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                  />
+                                  <select
+                                    value={editingTaskClientId}
+                                    onChange={(e) => {
+                                      const cid = e.target.value;
+                                      setEditingTaskClientId(cid);
+                                      const c = clients.find((cl) => cl.id === cid);
+                                      setEditingTaskProjectName(c?.name || "");
+                                      if (c?.client_type) setEditingTaskClientType(c.client_type);
+                                    }}
+                                    className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  >
+                                    <option value="">クライアント選択</option>
+                                    {clients.map((c) => (
+                                      <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                  </select>
                                   <select
                                     value={editingTaskAssignee}
                                     onChange={(e) => setEditingTaskAssignee(e.target.value)}
@@ -1038,6 +1078,7 @@ export default function Home() {
   setEditingTaskClientType(task.client_type ?? "");
   setEditingTaskTaskType(task.task_type ?? "");
   setEditingTaskAssignee(task.assignee ?? "");
+  setEditingTaskClientId(task.client_id ?? "");
   const cat = task.category ?? "";
   const isOther = cat.startsWith("その他：");
   setEditingTaskCategory(isOther ? "その他" : cat);
