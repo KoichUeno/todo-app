@@ -140,6 +140,9 @@ export default function Home() {
   const [editingSubtaskDueDate, setEditingSubtaskDueDate] = useState("");
 
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
+  const [newSubtaskDescriptions, setNewSubtaskDescriptions] = useState<Record<string, string>>({});
+  const [newSubtaskNotes, setNewSubtaskNotes] = useState<Record<string, string>>({});
+  const [newSubtaskDueDates, setNewSubtaskDueDates] = useState<Record<string, string>>({});
 
   const [newProjectName, setNewProjectName] = useState("");
   const [newClientId, setNewClientId] = useState("");
@@ -485,15 +488,21 @@ export default function Home() {
     const task = tasks.find((t) => t.id === taskId);
     const order_num = (task?.subtasks.length ?? 0) + 1;
     const assignee = newSubtaskAssignees[taskId]?.trim() || "";
+    const description = newSubtaskDescriptions[taskId]?.trim() || "";
+    const important_note = newSubtaskNotes[taskId]?.trim() || "";
+    const due_date = newSubtaskDueDates[taskId] || null;
     const res = await fetch('/api/subtasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskId, title, assignee, order_num }),
+      body: JSON.stringify({ task_id: taskId, title, assignee, order_num, description: description || null, important_note: important_note || null, due_date }),
     });
     const newSubtask = await res.json();
     setTasks(tasks.map((t) => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t));
     setNewSubtaskTitles({ ...newSubtaskTitles, [taskId]: "" });
     setNewSubtaskAssignees({ ...newSubtaskAssignees, [taskId]: "" });
+    setNewSubtaskDescriptions({ ...newSubtaskDescriptions, [taskId]: "" });
+    setNewSubtaskNotes({ ...newSubtaskNotes, [taskId]: "" });
+    setNewSubtaskDueDates({ ...newSubtaskDueDates, [taskId]: "" });
   };
 
   // サブタスクを削除する
@@ -1278,34 +1287,57 @@ export default function Home() {
                               )}
                             </Droppable>
                           </DragDropContext>
-                          <div className="flex flex-col gap-2 mt-3">
-                            <div className="flex gap-2">
+                          <div className="mt-3 bg-white border border-gray-200 rounded-xl p-3">
+                            <p className="text-xs font-semibold text-gray-500 mb-2">サブタスクを追加</p>
+                            <div className="flex flex-col gap-1.5">
                               <input
                                 type="text"
-                                placeholder="サブタスクを追加..."
+                                placeholder="サブタスク名 *"
                                 value={newSubtaskTitles[task.id] ?? ""}
                                 onChange={(e) => setNewSubtaskTitles({ ...newSubtaskTitles, [task.id]: e.target.value })}
                                 onKeyDown={(e) => e.key === "Enter" && addSubtask(task.id)}
-                                className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
                               />
-                              <select
-                                value={newSubtaskAssignees[task.id] ?? ""}
-                                onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
-                                className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                              >
-                                <option value="">責任者</option>
-                                {profiles.map((p) => (
-                                  <option key={p.id} value={p.name}>{p.name}</option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => addSubtask(task.id)}
-                                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                              >
-                                追加
-                              </button>
+                              <textarea
+                                placeholder="概要（任意）"
+                                value={newSubtaskDescriptions[task.id] ?? ""}
+                                onChange={(e) => setNewSubtaskDescriptions({ ...newSubtaskDescriptions, [task.id]: e.target.value })}
+                                rows={1}
+                                className="border border-gray-200 rounded-lg px-3 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                              />
+                              <input
+                                type="text"
+                                placeholder="重要事項（任意）"
+                                value={newSubtaskNotes[task.id] ?? ""}
+                                onChange={(e) => setNewSubtaskNotes({ ...newSubtaskNotes, [task.id]: e.target.value })}
+                                className="border border-orange-200 rounded-lg px-3 py-1 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
+                              />
+                              <div className="flex gap-2">
+                                <select
+                                  value={newSubtaskAssignees[task.id] ?? ""}
+                                  onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
+                                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                                >
+                                  <option value="">責任者</option>
+                                  {profiles.map((p) => (
+                                    <option key={p.id} value={p.name}>{p.name}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="date"
+                                  value={newSubtaskDueDates[task.id] ?? ""}
+                                  onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })}
+                                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                />
+                                <button
+                                  onClick={() => addSubtask(task.id)}
+                                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1 rounded-lg transition-colors"
+                                >
+                                  追加
+                                </button>
+                              </div>
                             </div>
-                            </div>
+                          </div>
                           </div>
                           </div>
                         </td>

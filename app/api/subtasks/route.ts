@@ -4,11 +4,11 @@ import { supabase } from '@/lib/supabase'
 // サブタスクを追加
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { task_id, title, description, order_num, assignee } = body
+  const { task_id, title, description, order_num, assignee, important_note, due_date } = body
 
   const { data, error } = await supabase
     .from('subtasks')
-    .insert({ task_id, title, description, order_num, assignee })
+    .insert({ task_id, title, description, order_num, assignee, important_note, due_date })
     .select()
     .single()
 
