@@ -153,7 +153,7 @@ export default function Dashboard() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-sm font-semibold text-gray-800">{task.title}</p>
+                              <p className="text-sm font-semibold text-gray-800 hover:text-blue-500 cursor-pointer transition-colors" onClick={() => router.push('/')}>{task.title}</p>
                               {importanceBadge(task.importance)}
                             </div>
                             {task.project_name && (
@@ -198,7 +198,7 @@ export default function Dashboard() {
                       <div key={task.id} className="border border-red-50 rounded-xl p-3 bg-red-50/30">
                         <div className="flex items-start justify-between gap-2 mb-1.5">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800">{task.title}</p>
+                            <p className="text-sm font-semibold text-gray-800 hover:text-blue-500 cursor-pointer transition-colors" onClick={() => router.push('/')}>{task.title}</p>
                             {task.project_name && <p className="text-[10px] text-gray-400 flex items-center gap-0.5"><Folder size={9} /> {task.project_name}</p>}
                             {task.assignee && <p className="text-[10px] text-blue-400 flex items-center gap-0.5"><User size={9} /> {task.assignee}</p>}
                             {task.important_note && (
@@ -268,7 +268,7 @@ export default function Dashboard() {
                           <tr key={task.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                             <td className="py-2 pr-3">{importanceBadge(task.importance)}</td>
                             <td className="py-2 pr-3">
-                              <p className="font-medium text-gray-800">{task.title}</p>
+                              <p className="font-medium text-gray-800 hover:text-blue-500 cursor-pointer transition-colors" onClick={() => router.push('/')}>{task.title}</p>
                               {task.important_note && <p className="text-[10px] text-orange-500">⚠ {task.important_note}</p>}
                             </td>
                             <td className="py-2 pr-3 text-xs text-gray-500">{task.project_name || "—"}</td>
