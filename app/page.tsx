@@ -68,6 +68,7 @@ type Task = {
   data_location: string;
   category: string;
   client_id: string;
+  task_number: string;
   subtasks: Subtask[];
   showSubtasks: boolean;
 };
@@ -1087,6 +1088,7 @@ export default function Home() {
 }}
                               >
                                 <div className="flex items-center gap-2 flex-wrap">
+                                  {task.task_number && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{task.task_number}</span>}
                                   <p className="font-semibold text-gray-800 group-hover:text-blue-500 transition-colors">{task.title}</p>
                                   {task.importance === "最高" && (
                                     <span className="inline-flex items-center gap-0.5 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold"><Circle size={8} className="fill-red-500 text-red-500" /> 最高</span>

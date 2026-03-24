@@ -38,6 +38,18 @@ export async function GET() {
     results.push('✅ profiles.password_plain カラムOK')
   }
 
+  // task_numberカラム確認
+  const { error: checkTaskNum } = await supabaseAdmin
+    .from('tasks')
+    .select('task_number')
+    .limit(1)
+
+  if (checkTaskNum?.message?.includes('task_number')) {
+    results.push('❌ tasks.task_number カラムが存在しません')
+  } else {
+    results.push('✅ tasks.task_number カラムOK')
+  }
+
   // 上野晃一の権限確認
   const { data: adminCheck } = await supabaseAdmin
     .from('profiles')
@@ -50,6 +62,7 @@ export async function GET() {
     results,
     sql_to_run: [
       'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category text;',
+      'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_number text;',
       'ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password_plain text;',
       "UPDATE profiles SET role = '管理者' WHERE name = '上野　晃一' OR name = '上野晃一';"
     ]
