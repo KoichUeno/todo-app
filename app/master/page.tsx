@@ -262,17 +262,14 @@ export default function MasterPage() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">マスター管理</h1>
-          <div className="flex gap-2">
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg"
-            >
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => router.push("/clients")} className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg font-semibold">
+              クライアントマスター
+            </button>
+            <button onClick={() => router.push("/dashboard")} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg">
               ダッシュボード
             </button>
-            <button
-              onClick={() => router.push("/")}
-              className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg"
-            >
+            <button onClick={() => router.push("/")} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg">
               タスク一覧
             </button>
           </div>

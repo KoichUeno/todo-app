@@ -268,8 +268,8 @@ export default function Dashboard() {
                           <tr key={task.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                             <td className="py-2 pr-3">{importanceBadge(task.importance)}</td>
                             <td className="py-2 pr-3">
-                              <p className="font-medium text-gray-800 truncate max-w-[180px]">{task.title}</p>
-                              {task.important_note && <p className="text-[10px] text-orange-500 truncate max-w-[180px]">⚠ {task.important_note}</p>}
+                              <p className="font-medium text-gray-800">{task.title}</p>
+                              {task.important_note && <p className="text-[10px] text-orange-500">⚠ {task.important_note}</p>}
                             </td>
                             <td className="py-2 pr-3 text-xs text-gray-500">{task.project_name || "—"}</td>
                             <td className="py-2 pr-3">

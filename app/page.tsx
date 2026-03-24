@@ -138,6 +138,7 @@ export default function Home() {
   const [editingTaskCategoryOther, setEditingTaskCategoryOther] = useState("");
 
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterClientType, setFilterClientType] = useState("");
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateSubtasksMap, setTemplateSubtasksMap] = useState<Record<string, TemplateSubtask[]>>({});
@@ -526,10 +527,16 @@ export default function Home() {
     return t.category === filterCategory;
   };
 
-  const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && categoryFilter(t));
-  const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && categoryFilter(t));
-  const invoicedTasks = tasks.filter((t) => t.status === '請求済' && categoryFilter(t));
-  const collectedTasks = tasks.filter((t) => t.status === '回収済' && categoryFilter(t));
+  // クライアント区分フィルター
+  const clientTypeFilter = (t: Task) => {
+    if (!filterClientType) return true;
+    return t.client_type === filterClientType;
+  };
+
+  const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && categoryFilter(t) && clientTypeFilter(t));
+  const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && categoryFilter(t) && clientTypeFilter(t));
+  const invoicedTasks = tasks.filter((t) => t.status === '請求済' && categoryFilter(t) && clientTypeFilter(t));
+  const collectedTasks = tasks.filter((t) => t.status === '回収済' && categoryFilter(t) && clientTypeFilter(t));
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -544,6 +551,12 @@ export default function Home() {
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
             >
               ダッシュボード
+            </button>
+            <button
+              onClick={() => router.push("/clients")}
+              className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              クライアント
             </button>
             <button
               onClick={() => router.push("/master")}
@@ -597,7 +610,7 @@ export default function Home() {
               <div className="flex gap-2 mb-2 flex-wrap">
                 <input
                   type="text"
-                  placeholder="案件名（任意）"
+                  placeholder="クライアント名（任意）"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm"
@@ -813,22 +826,19 @@ export default function Home() {
               )}
             </div>
 
-            {/* カテゴリーフィルター */}
-            <div className="flex gap-2 flex-wrap mb-3">
-              <button
-                onClick={() => setFilterCategory("")}
-                className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterCategory ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-              >
-                すべて
-              </button>
+            {/* フィルター */}
+            <div className="flex gap-2 flex-wrap mb-2">
+              <span className="text-[10px] text-gray-400 self-center">カテゴリー:</span>
+              <button onClick={() => setFilterCategory("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterCategory ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
               {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setFilterCategory(filterCategory === c ? "" : c)}
-                  className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterCategory === c ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-600 hover:bg-purple-100"}`}
-                >
-                  {c}
-                </button>
+                <button key={c} onClick={() => setFilterCategory(filterCategory === c ? "" : c)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterCategory === c ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-600 hover:bg-purple-100"}`}>{c}</button>
+              ))}
+            </div>
+            <div className="flex gap-2 flex-wrap mb-3">
+              <span className="text-[10px] text-gray-400 self-center">顧客区分:</span>
+              <button onClick={() => setFilterClientType("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterClientType ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
+              {["企業", "資産家"].map((ct) => (
+                <button key={ct} onClick={() => setFilterClientType(filterClientType === ct ? "" : ct)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterClientType === ct ? "bg-blue-500 text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>{ct}</button>
               ))}
             </div>
 
@@ -904,7 +914,7 @@ export default function Home() {
                                     type="text"
                                     value={editingTaskProjectName}
                                     onChange={(e) => setEditingTaskProjectName(e.target.value)}
-                                    placeholder="案件名（任意）"
+                                    placeholder="クライアント名（任意）"
                                     className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   />
                                   <select
