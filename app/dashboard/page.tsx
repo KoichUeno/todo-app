@@ -44,6 +44,7 @@ export default function Dashboard() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterCategory, setFilterCategory] = useState("");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -62,11 +63,18 @@ export default function Dashboard() {
     setLoading(false);
   };
 
+  const CATEGORIES = ["総務", "帳簿入力", "申告", "コンサルティング"];
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // カテゴリフィルタ適用
+  const filteredTasks = filterCategory
+    ? tasks.filter((t) => t.category === filterCategory || (filterCategory === "その他" && (!t.category || !CATEGORIES.includes(t.category))))
+    : tasks;
+
   // 期限が7日以内のタスク（期限切れ含む）
-  const urgentTasks = tasks
+  const urgentTasks = filteredTasks
     .filter((t) => {
       if (!t.due_date) return false;
       const due = new Date(t.due_date);
@@ -80,7 +88,7 @@ export default function Dashboard() {
     });
 
   // 重要度「最高」のタスク
-  const criticalTasks = tasks
+  const criticalTasks = filteredTasks
     .filter((t) => t.importance === "最高")
     .sort((a, b) => {
       if (!a.due_date) return 1;
@@ -89,7 +97,7 @@ export default function Dashboard() {
     });
 
   // 全タスクを重要度順
-  const allByImportance = [...tasks].sort(
+  const allByImportance = [...filteredTasks].sort(
     (a, b) => (IMPORTANCE_ORDER[a.importance] ?? 3) - (IMPORTANCE_ORDER[b.importance] ?? 3)
   );
 
@@ -126,6 +134,15 @@ export default function Dashboard() {
               マスター管理
             </button>
           </div>
+        </div>
+
+        {/* カテゴリフィルタ */}
+        <div className="flex gap-2 flex-wrap mb-4">
+          <span className="text-[10px] text-gray-400 self-center">カテゴリー:</span>
+          <button onClick={() => setFilterCategory("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterCategory ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
+          {[...CATEGORIES, "その他"].map((c) => (
+            <button key={c} onClick={() => setFilterCategory(filterCategory === c ? "" : c)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterCategory === c ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-600 hover:bg-purple-100"}`}>{c}</button>
+          ))}
         </div>
 
         {loading ? (
@@ -238,7 +255,7 @@ export default function Dashboard() {
             <div className="md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                 <CalendarDays size={16} className="text-gray-500" /> 未完了タスク一覧（重要度順）
-                <span className="ml-auto text-[10px] text-gray-400 font-normal">{tasks.length}件</span>
+                <span className="ml-auto text-[10px] text-gray-400 font-normal">{filteredTasks.length}件</span>
               </h2>
               {allByImportance.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-6">未完了タスクはありません</p>
