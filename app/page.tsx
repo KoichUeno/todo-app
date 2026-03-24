@@ -404,6 +404,8 @@ export default function Home() {
 
   // タスクを削除する
   const deleteTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!confirm(`「${task?.title || 'このタスク'}」を削除しますか？この操作は取り消せません。`)) return;
     await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
     setTasks(tasks.filter((t) => t.id !== id));
   };
@@ -471,6 +473,9 @@ export default function Home() {
 
   // サブタスクを削除する
   const deleteSubtask = async (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const sub = task?.subtasks.find((s) => s.id === subtaskId);
+    if (!confirm(`「${sub?.title || 'このサブタスク'}」を削除しますか？`)) return;
     await fetch(`/api/subtasks?id=${subtaskId}`, { method: 'DELETE' });
     setTasks(tasks.map((t) =>
       t.id !== taskId ? t : { ...t, subtasks: t.subtasks.filter((s) => s.id !== subtaskId) }
