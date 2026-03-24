@@ -423,16 +423,32 @@ export default function Home() {
       s.id === subtaskId ? { ...s, is_completed: !current } : s
     );
     const allDone = updatedSubtasks.length > 0 && updatedSubtasks.every((s) => s.is_completed);
-    if (allDone !== task.is_completed) {
+    const wasActive = task.status === '進行中' || (!task.status && !task.is_completed);
+    // 全サブタスク完了 → ステータスを「完了（未請求）」に自動変更
+    if (allDone && wasActive) {
       await fetch('/api/tasks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: taskId, is_completed: allDone }),
+        body: JSON.stringify({ id: taskId, is_completed: true, status: '完了（未請求）' }),
       });
+      setTasks(tasks.map((t) =>
+        t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks, is_completed: true, status: '完了（未請求）' }
+      ));
+    } else if (!allDone && task.status === '完了（未請求）') {
+      // サブタスクが未完了に戻されたら「進行中」に戻す
+      await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, is_completed: false, status: '進行中' }),
+      });
+      setTasks(tasks.map((t) =>
+        t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks, is_completed: false, status: '進行中' }
+      ));
+    } else {
+      setTasks(tasks.map((t) =>
+        t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks }
+      ));
     }
-    setTasks(tasks.map((t) =>
-      t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks, is_completed: allDone }
-    ));
   };
 
   // サブタスクを追加する
