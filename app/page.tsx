@@ -585,7 +585,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
 
         {/* タイトル */}
         <div className="flex items-center justify-between mb-2">
@@ -1092,7 +1092,8 @@ export default function Home() {
   setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
 }}
                               >
-                                <div className="flex items-center gap-2 flex-wrap">
+                                {/* タイトル行 */}
+                                <div className="flex items-center gap-2 mb-1.5">
                                   {task.task_number && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{task.task_number}</span>}
                                   <p className="font-semibold text-gray-800 group-hover:text-blue-500 transition-colors">{task.title}</p>
                                   {task.importance === "最高" && (
@@ -1101,38 +1102,35 @@ export default function Home() {
                                   {task.importance === "高" && (
                                     <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full font-semibold"><Circle size={8} className="fill-orange-400 text-orange-400" /> 高</span>
                                   )}
-                                  {task.client_type === "企業" && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full"><Building2 size={9} /> 企業</span>
-                                  )}
-                                  {task.client_type === "資産家" && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full"><Crown size={9} /> 資産家</span>
-                                  )}
-                                  {task.task_type === "定例" && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full"><CalendarDays size={9} /> 定例</span>
-                                  )}
-                                  {task.task_type === "スポット" && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full"><Zap size={9} /> スポット</span>
-                                  )}
-                                  {task.is_recurring && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold"><Repeat size={9} /> 毎月</span>
-                                  )}
-                                  {task.project_name && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full"><Folder size={9} /> {task.project_name}</span>
-                                  )}
-                                  {task.category && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">{task.category}</span>
-                                  )}
                                 </div>
                                 {task.description && (
-                                  <p className="text-xs text-gray-500 mt-1">{task.description}</p>
+                                  <p className="text-xs text-gray-500 mb-1.5">{task.description}</p>
                                 )}
-                                {task.due_date && (
-                                  <p className="text-xs text-gray-400 mt-1">締め切り：{task.due_date}</p>
-                                )}
-                                {task.data_location && (
-                                  <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Database size={10} /> {task.data_location}</p>
-                                )}
-                                {!task.due_date && !task.description && !task.data_location && (
+                                {/* 情報行：横並びバッジ */}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  {task.project_name && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md"><Folder size={10} className="text-gray-400" /> {task.project_name}</span>
+                                  )}
+                                  {task.assignee && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md"><User size={10} /> {task.assignee}</span>
+                                  )}
+                                  {task.category && (
+                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">{task.category}</span>
+                                  )}
+                                  {task.client_type === "企業" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full"><Building2 size={9} /> 企業</span>}
+                                  {task.client_type === "資産家" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full"><Crown size={9} /> 資産家</span>}
+                                  {task.client_type && !["企業","資産家"].includes(task.client_type) && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{task.client_type}</span>}
+                                  {task.task_type === "定例" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full"><CalendarDays size={9} /> 定例</span>}
+                                  {task.task_type === "スポット" && <span className="inline-flex items-center gap-0.5 text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full"><Zap size={9} /> スポット</span>}
+                                  {task.is_recurring && <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold"><Repeat size={9} /> 毎月</span>}
+                                  {task.due_date && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md"><CalendarDays size={10} className="text-gray-400" /> {task.due_date}</span>
+                                  )}
+                                  {task.data_location && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md"><Database size={10} className="text-gray-400" /> {task.data_location}</span>
+                                  )}
+                                </div>
+                                {!task.project_name && !task.assignee && !task.due_date && !task.description && !task.category && (
                                   <p className="text-xs text-gray-300 mt-1">クリックして編集</p>
                                 )}
                               </div>
@@ -1432,7 +1430,7 @@ export default function Home() {
           </div>
 
           {/* 右カラム：担当者ごと未完了一覧 */}
-          <div className="w-64 shrink-0">
+          <div className="w-56 shrink-0 hidden lg:block">
             <SidebarByAssignee activeTasks={activeTasks} />
           </div>
 
