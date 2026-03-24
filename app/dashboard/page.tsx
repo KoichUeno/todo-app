@@ -249,7 +249,7 @@ export default function Dashboard() {
                       <tr className="text-xs text-gray-400 border-b border-gray-100">
                         <th className="text-left pb-2 font-semibold">重要度</th>
                         <th className="text-left pb-2 font-semibold">タスク名</th>
-                        <th className="text-left pb-2 font-semibold">案件</th>
+                        <th className="text-left pb-2 font-semibold">クライアント</th>
                         <th className="text-left pb-2 font-semibold">顧客区分</th>
                         <th className="text-left pb-2 font-semibold">案件区分</th>
                         <th className="text-left pb-2 font-semibold">担当者</th>
