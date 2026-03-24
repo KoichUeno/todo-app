@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { Building2, Crown, Plus, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { Building2, Crown, Plus, ChevronDown, ChevronUp, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 type Client = {
   id: string;
@@ -13,6 +13,17 @@ type Client = {
   fiscal_month: string;
   note: string;
   client_code: string;
+};
+
+type Task = {
+  id: string;
+  title: string;
+  status: string;
+  due_date: string;
+  category: string;
+  task_number: string;
+  client_id: string;
+  project_name: string;
 };
 
 const CLIENT_TYPES = ["企業", "資産家", "その他"];
@@ -48,6 +59,9 @@ export default function ClientsPage() {
   const [editNote, setEditNote] = useState("");
   const [editClientCode, setEditClientCode] = useState("");
 
+  // クライアント別タスク
+  const [clientTasks, setClientTasks] = useState<Record<string, Task[]>>({});
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push("/auth"); return; }
@@ -58,6 +72,22 @@ export default function ClientsPage() {
   const fetchClients = async () => {
     const res = await fetch("/api/clients");
     if (res.ok) setClients(await res.json());
+  };
+
+  const fetchClientTasks = async (clientId: string) => {
+    if (clientTasks[clientId]) return;
+    const res = await fetch("/api/tasks");
+    if (res.ok) {
+      const all: Task[] = await res.json();
+      const map: Record<string, Task[]> = {};
+      all.forEach((t) => {
+        if (t.client_id) {
+          if (!map[t.client_id]) map[t.client_id] = [];
+          map[t.client_id].push(t);
+        }
+      });
+      setClientTasks(map);
+    }
   };
 
   const addClient = async () => {
@@ -159,7 +189,7 @@ export default function ClientsPage() {
           {visible.length === 0 && <p className="text-sm text-gray-400 text-center py-8">クライアントがありません</p>}
           {visible.map((c) => (
             <div key={c.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
+              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => { const next = expandedId === c.id ? null : c.id; setExpandedId(next); if (next) fetchClientTasks(c.id); }}>
                 <div className="flex items-center gap-2">
                   {c.client_code && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{c.client_code}</span>}
                   <p className="text-sm font-semibold text-gray-800">{c.name}</p>
@@ -198,7 +228,9 @@ export default function ClientsPage() {
                       </div>
                     </div>
                   ) : (
+                    <>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
+                      {c.client_code && <div><span className="text-gray-400">法人番号：</span><span className="font-mono">{c.client_code}</span></div>}
                       {c.head_office && <div><span className="text-gray-400">本店所在地：</span>{c.head_office}</div>}
                       {c.representative && <div><span className="text-gray-400">代表者：</span>{c.representative}</div>}
                       {c.fiscal_month && <div><span className="text-gray-400">決算月：</span>{c.fiscal_month}</div>}
@@ -207,6 +239,50 @@ export default function ClientsPage() {
                         <p className="col-span-2 text-gray-300">詳細情報なし</p>
                       )}
                     </div>
+                    {/* 完了タスク一覧 */}
+                    {(() => {
+                      const tasks = clientTasks[c.id] || [];
+                      const completed = tasks.filter((t) => t.status === '完了（未請求）' || t.status === '請求済' || t.status === '回収済');
+                      const active = tasks.filter((t) => t.status === '進行中' || !t.status);
+                      return (
+                        <div className="mt-3 border-t border-gray-100 pt-3">
+                          {active.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-[10px] font-bold text-blue-500 mb-1 uppercase tracking-wide">進行中 ({active.length})</p>
+                              <div className="flex flex-col gap-1">
+                                {active.map((t) => (
+                                  <div key={t.id} className="flex items-center gap-2 text-xs text-gray-700 bg-blue-50 rounded px-2 py-1">
+                                    {t.task_number && <span className="text-[9px] bg-gray-200 text-gray-500 px-1 rounded font-mono">{t.task_number}</span>}
+                                    <span>{t.title}</span>
+                                    {t.due_date && <span className="text-gray-400 ml-auto">{t.due_date}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {completed.length > 0 ? (
+                            <div>
+                              <p className="text-[10px] font-bold text-green-500 mb-1 uppercase tracking-wide flex items-center gap-1"><CheckCircle2 size={10} /> 完了済 ({completed.length})</p>
+                              <div className="flex flex-col gap-1">
+                                {completed.map((t) => (
+                                  <div key={t.id} className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1">
+                                    {t.task_number && <span className="text-[9px] bg-gray-200 text-gray-400 px-1 rounded font-mono">{t.task_number}</span>}
+                                    <span>{t.title}</span>
+                                    <span className="text-[10px] text-green-500 ml-1">{t.status}</span>
+                                    {t.due_date && <span className="text-gray-300 ml-auto">{t.due_date}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : tasks.length > 0 ? (
+                            <p className="text-[10px] text-gray-300">完了タスクなし</p>
+                          ) : (
+                            <p className="text-[10px] text-gray-300">タスクなし</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    </>
                   )}
                 </div>
               )}
