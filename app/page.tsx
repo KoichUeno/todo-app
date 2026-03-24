@@ -34,6 +34,7 @@ type Subtask = {
   is_completed: boolean;
   order_num: number;
   assignee: string;
+  due_date: string;
 };
 
 type Profile = {
@@ -136,6 +137,7 @@ export default function Home() {
   const [editingSubtaskDescription, setEditingSubtaskDescription] = useState("");
   const [editingSubtaskImportantNote, setEditingSubtaskImportantNote] = useState("");
   const [editingSubtaskAssignee, setEditingSubtaskAssignee] = useState("");
+  const [editingSubtaskDueDate, setEditingSubtaskDueDate] = useState("");
 
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
 
@@ -511,14 +513,14 @@ export default function Home() {
     await fetch('/api/subtasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: subtaskId, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee }),
+      body: JSON.stringify({ id: subtaskId, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate || null }),
     });
     setTasks(tasks.map((t) => {
       if (t.id !== taskId) return t;
       return {
         ...t,
         subtasks: t.subtasks.map((s) =>
-          s.id === subtaskId ? { ...s, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee } : s
+          s.id === subtaskId ? { ...s, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate } : s
         ),
       };
     }));
@@ -1114,15 +1116,17 @@ export default function Home() {
                                     placeholder="データ保存場所"
                                     className="flex-1 border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   />
+                                </div>
+                                <div className="flex gap-2 items-center pt-2 border-t border-blue-100 mt-2">
                                   <button
                                     onClick={() => saveTaskEdit(task.id)}
-                                    className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-3 py-1 rounded-lg transition-colors"
+                                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white font-bold px-5 py-1.5 rounded-lg transition-colors shadow-sm"
                                   >
-                                    保存
+                                    保存する
                                   </button>
                                   <button
                                     onClick={() => setEditingTaskId(null)}
-                                    className="text-xs text-gray-400 hover:text-gray-600"
+                                    className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5"
                                   >
                                     キャンセル
                                   </button>
@@ -1206,16 +1210,24 @@ export default function Home() {
                                                 placeholder="重要事項（任意）"
                                                 className="border border-orange-200 rounded px-2 py-0.5 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
                                               />
-                                              <select
-                                                value={editingSubtaskAssignee}
-                                                onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
-                                                className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                                              >
-                                                <option value="">責任者を選択</option>
-                                                {profiles.map((p) => (
-                                                  <option key={p.id} value={p.name}>{p.name}</option>
-                                                ))}
-                                              </select>
+                                              <div className="flex gap-2">
+                                                <select
+                                                  value={editingSubtaskAssignee}
+                                                  onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
+                                                  className="flex-1 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                                                >
+                                                  <option value="">責任者を選択</option>
+                                                  {profiles.map((p) => (
+                                                    <option key={p.id} value={p.name}>{p.name}</option>
+                                                  ))}
+                                                </select>
+                                                <input
+                                                  type="date"
+                                                  value={editingSubtaskDueDate}
+                                                  onChange={(e) => setEditingSubtaskDueDate(e.target.value)}
+                                                  className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                                />
+                                              </div>
                                             </div>
                                           ) : (
                                             <div className="flex-1">
@@ -1231,18 +1243,21 @@ export default function Home() {
                                               {sub.assignee && (
                                                 <p className="text-xs text-blue-400 mt-0.5 flex items-center gap-0.5"><User size={10} /> {sub.assignee}</p>
                                               )}
+                                              {sub.due_date && (
+                                                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-0.5"><CalendarDays size={10} /> {sub.due_date}</p>
+                                              )}
                                             </div>
                                           )}
                                           {editingSubtaskId === sub.id ? (
                                             <button
                                               onClick={() => saveSubtaskEdit(task.id, sub.id)}
-                                              className="text-xs text-blue-500 hover:text-blue-700 transition-colors shrink-0"
+                                              className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-3 py-1 rounded-lg transition-colors shrink-0"
                                             >
                                               保存
                                             </button>
                                           ) : (
                                             <button
-                                              onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); }}
+                                              onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); setEditingSubtaskDueDate(sub.due_date ?? ""); }}
                                               className="text-xs text-gray-400 hover:text-blue-400 transition-colors shrink-0"
                                             >
                                               編集
