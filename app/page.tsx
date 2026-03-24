@@ -653,22 +653,16 @@ export default function Home() {
                 </select>
               </div>
               <div className="flex gap-2 mb-2 flex-wrap">
-                <select
+                <ClientComboBox
+                  clients={clients}
                   value={newClientId}
-                  onChange={(e) => {
-                    const cid = e.target.value;
+                  onChange={(cid, c) => {
                     setNewClientId(cid);
-                    const c = clients.find((cl) => cl.id === cid);
                     setNewProjectName(c?.name || "");
                     if (c?.client_type) setNewClientType(c.client_type);
                   }}
-                  className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm"
-                >
-                  <option value="">クライアント選択</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  className="flex-1 min-w-[160px]"
+                />
                 <select
                   value={newImportance}
                   onChange={(e) => setNewImportance(e.target.value)}
@@ -1036,22 +1030,16 @@ export default function Home() {
                                   className="flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
                                 <div className="flex gap-2 flex-wrap">
-                                  <select
+                                  <ClientComboBox
+                                    clients={clients}
                                     value={editingTaskClientId}
-                                    onChange={(e) => {
-                                      const cid = e.target.value;
+                                    onChange={(cid, c) => {
                                       setEditingTaskClientId(cid);
-                                      const c = clients.find((cl) => cl.id === cid);
                                       setEditingTaskProjectName(c?.name || "");
                                       if (c?.client_type) setEditingTaskClientType(c.client_type);
                                     }}
-                                    className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                  >
-                                    <option value="">クライアント選択</option>
-                                    {clients.map((c) => (
-                                      <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                  </select>
+                                    className="flex-1 min-w-[160px]"
+                                  />
                                   <select
                                     value={editingTaskAssignee}
                                     onChange={(e) => setEditingTaskAssignee(e.target.value)}
@@ -1701,6 +1689,76 @@ function SidebarByAssignee({ activeTasks }: { activeTasks: Task[] }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// クライアント検索コンボボックス
+function ClientComboBox({
+  clients,
+  value,
+  onChange,
+  className,
+}: {
+  clients: Client[];
+  value: string;
+  onChange: (clientId: string, client?: Client) => void;
+  className?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const selected = clients.find((c) => c.id === value);
+
+  const filtered = query
+    ? clients.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+    : clients;
+
+  const typeBadge = (t: string) => {
+    if (t === "企業") return <span className="text-[9px] bg-blue-100 text-blue-600 px-1 py-0.5 rounded-full">企業</span>;
+    if (t === "資産家") return <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded-full">資産家</span>;
+    if (t === "一般社団法人") return <span className="text-[9px] bg-green-100 text-green-600 px-1 py-0.5 rounded-full">社団</span>;
+    if (t) return <span className="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded-full">{t}</span>;
+    return null;
+  };
+
+  return (
+    <div className={`relative ${className || ""}`}>
+      <input
+        type="text"
+        value={isOpen ? query : (selected?.name || "")}
+        onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
+        onFocus={() => { setIsOpen(true); setQuery(""); }}
+        placeholder="クライアント検索..."
+        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+      />
+      {selected && !isOpen && (
+        <button
+          onClick={() => { onChange(""); setQuery(""); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 text-sm"
+        >
+          ×
+        </button>
+      )}
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-gray-400 px-3 py-3 text-center">該当なし</p>
+          ) : (
+            filtered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => { onChange(c.id, c); setQuery(""); setIsOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors flex items-center gap-2 ${c.id === value ? "bg-blue-50 font-semibold" : ""}`}
+              >
+                <span className="flex-1 truncate">{c.name}</span>
+                {typeBadge(c.client_type)}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+      {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
     </div>
   );
 }
