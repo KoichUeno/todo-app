@@ -643,7 +643,7 @@ export default function Home() {
 
   const isAdmin = !currentUser || currentUser.role === '管理者' || currentUser.role === 'admin';
 
-  const CATEGORIES = ["総務", "帳簿入力", "申告", "コンサルティング", "その他"];
+  const CATEGORIES = ["総務", "帳簿入力", "帳簿確認", "申告", "コンサルティング", "その他"];
 
   // カテゴリーの実際の保存値を取得（「その他」の場合は自由入力値）
   const resolveCategory = (cat: string, other: string) =>
