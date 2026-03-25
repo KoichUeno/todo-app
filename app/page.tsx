@@ -574,8 +574,24 @@ export default function Home() {
     );
   };
 
-  // サブタスクの表示・非表示を切り替える
+  // サブタスクの表示・非表示を切り替える（閉じる時は編集中サブタスクを自動保存）
   const toggleSubtasks = (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (task?.showSubtasks && editingSubtaskId) {
+      // 閉じる前に編集中のサブタスクを自動保存
+      const sub = task.subtasks.find((s) => s.id === editingSubtaskId);
+      if (sub && editingSubtaskTitle.trim()) {
+        saveSubtaskEdit(id, editingSubtaskId);
+      }
+      setEditingSubtaskId(null);
+    }
+    // 閉じる前に入力途中のサブタスクがあれば追加保存
+    if (task?.showSubtasks) {
+      const pendingTitle = newSubtaskTitles[id]?.trim();
+      if (pendingTitle) {
+        addSubtask(id);
+      }
+    }
     setTasks(tasks.map((t) => (t.id === id ? { ...t, showSubtasks: !t.showSubtasks } : t)));
   };
 
