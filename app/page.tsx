@@ -1112,8 +1112,8 @@ export default function Home() {
 
               <div className="mb-8">
                 <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">進行中 ({activeTasks.length})</h2>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto -webkit-overflow-scrolling-touch" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <table className="w-full text-sm min-w-[640px]">
                     <thead>
                       <tr className="text-[11px] text-gray-400 border-b border-gray-100 bg-gray-50">
                         <th className="text-left py-2 px-3 font-semibold w-8">重要度</th>
@@ -2062,7 +2062,7 @@ function MiniGantt({ task }: { task: Task }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-3 mb-3">
       <p className="text-[10px] font-semibold text-gray-400 mb-2 uppercase tracking-wide">工程表</p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ minWidth: Math.max(totalDays * 32, 300) }}>
           {/* 日付ヘッダー */}
           <div className="flex border-b border-gray-100 mb-1">
