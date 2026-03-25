@@ -167,6 +167,7 @@ export default function Home() {
   const [filterClientType, setFilterClientType] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
   const [filterClientName, setFilterClientName] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateSubtasksMap, setTemplateSubtasksMap] = useState<Record<string, TemplateSubtask[]>>({});
@@ -174,6 +175,10 @@ export default function Home() {
   const [newTplSubtaskAssignee, setNewTplSubtaskAssignee] = useState<Record<string, string>>({});
 
   const [view, setView] = useState<"list" | "kanban" | "project">("list");
+
+  // Undoバー用
+  const [undoInfo, setUndoInfo] = useState<{ taskId: string; taskTitle: string; subtasks: Subtask[] } | null>(null);
+  const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // DBからタスク一覧・プロフィール・テンプレートを取得
   useEffect(() => {
@@ -467,7 +472,7 @@ export default function Home() {
     );
     const allDone = updatedSubtasks.length > 0 && updatedSubtasks.every((s) => s.is_completed);
     const wasActive = task.status === '進行中' || (!task.status && !task.is_completed);
-    // 全サブタスク完了 → ステータスを「完了（未請求）」に自動変更
+    // 全サブタスク完了 → ステータスを「完了（未請求）」に自動変更 + Undoバー表示
     if (allDone && wasActive) {
       await fetch('/api/tasks', {
         method: 'PATCH',
@@ -477,6 +482,10 @@ export default function Home() {
       setTasks(tasks.map((t) =>
         t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks, is_completed: true, status: '完了（未請求）' }
       ));
+      // Undoバーを表示（8秒後に自動消去）
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      setUndoInfo({ taskId, taskTitle: task.title, subtasks: updatedSubtasks });
+      undoTimerRef.current = setTimeout(() => setUndoInfo(null), 8000);
     } else if (!allDone && task.status === '完了（未請求）') {
       // サブタスクが未完了に戻されたら「進行中」に戻す
       await fetch('/api/tasks', {
@@ -492,6 +501,40 @@ export default function Home() {
         t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks }
       ));
     }
+  };
+
+  // Undo: 完了に変わったタスクを進行中に戻す
+  const undoAutoComplete = async () => {
+    if (!undoInfo) return;
+    const { taskId, subtasks } = undoInfo;
+    // 最後のサブタスクを未完了に戻す
+    const lastDone = [...subtasks].reverse().find((s) => s.is_completed);
+    if (lastDone) {
+      await fetch('/api/subtasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: lastDone.id, is_completed: false }),
+      });
+    }
+    await fetch('/api/tasks', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: taskId, is_completed: false, status: '進行中' }),
+    });
+    setTasks(tasks.map((t) => {
+      if (t.id !== taskId) return t;
+      return {
+        ...t,
+        is_completed: false,
+        status: '進行中',
+        showSubtasks: true,
+        subtasks: t.subtasks.map((s) =>
+          s.id === lastDone?.id ? { ...s, is_completed: false } : s
+        ),
+      };
+    }));
+    setUndoInfo(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
   // サブタスクを追加する
@@ -632,7 +675,14 @@ export default function Home() {
     return t.project_name?.toLowerCase().includes(filterClientName.toLowerCase());
   };
 
-  const allFilters = (t: Task) => categoryFilter(t) && clientTypeFilter(t) && monthFilter(t) && clientNameFilter(t);
+  // ステータスフィルター
+  const statusFilter = (t: Task) => {
+    if (!filterStatus) return true;
+    const s = t.status || (t.is_completed ? '完了（未請求）' : '進行中');
+    return s === filterStatus;
+  };
+
+  const allFilters = (t: Task) => categoryFilter(t) && clientTypeFilter(t) && monthFilter(t) && clientNameFilter(t) && statusFilter(t);
 
   const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && allFilters(t));
   const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && allFilters(t));
@@ -644,6 +694,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
+      {/* Undoトースト */}
+      {undoInfo && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-4 animate-fade-in">
+          <span className="text-sm">「{undoInfo.taskTitle}」を完了にしました</span>
+          <button
+            onClick={undoAutoComplete}
+            className="text-blue-300 hover:text-blue-100 font-bold text-sm underline"
+          >
+            元に戻す
+          </button>
+          <button
+            onClick={() => { setUndoInfo(null); if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }}
+            className="text-gray-400 hover:text-white text-lg ml-1"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
 
         {/* タイトル */}
@@ -970,6 +1038,18 @@ export default function Home() {
                   <option key={m} value={m}>{m.replace("-", "年") + "月"}</option>
                 ))}
               </select>
+              <span className="text-[10px] text-gray-400 ml-2">ステータス:</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="text-xs border border-gray-200 rounded-full px-3 py-1 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer"
+              >
+                <option value="">すべて</option>
+                <option value="進行中">進行中</option>
+                <option value="完了（未請求）">完了（未請求）</option>
+                <option value="請求済">請求済</option>
+                <option value="回収済">回収済</option>
+              </select>
               <span className="text-[10px] text-gray-400 ml-2">クライアント:</span>
               <input
                 type="text"
@@ -978,9 +1058,9 @@ export default function Home() {
                 placeholder="クライアント名で絞込..."
                 className="text-xs border border-gray-200 rounded-full px-3 py-1 w-40 focus:outline-none focus:ring-2 focus:ring-blue-300"
               />
-              {(filterMonth || filterClientName || filterCategory || filterClientType) && (
+              {(filterMonth || filterClientName || filterCategory || filterClientType || filterStatus) && (
                 <button
-                  onClick={() => { setFilterMonth(""); setFilterClientName(""); setFilterCategory(""); setFilterClientType(""); }}
+                  onClick={() => { setFilterMonth(""); setFilterClientName(""); setFilterCategory(""); setFilterClientType(""); setFilterStatus(""); }}
                   className="text-[10px] text-red-400 hover:text-red-600 underline ml-2"
                 >
                   フィルタをリセット
@@ -1481,6 +1561,12 @@ export default function Home() {
                               {task.subtasks.length > 0 && <p className="text-[10px] text-gray-300 mt-0.5">サブタスク {task.subtasks.length}件</p>}
                             </div>
                             <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                              <button
+                                onClick={() => changeTaskStatus(task.id, '進行中')}
+                                className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2.5 py-1 rounded-full transition-colors font-semibold"
+                              >
+                                進行中に戻す
+                              </button>
                               <button
                                 onClick={() => registerAsTemplate(task)}
                                 className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-700 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded-full transition-colors font-semibold"
