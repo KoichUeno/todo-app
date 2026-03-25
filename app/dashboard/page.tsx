@@ -23,6 +23,8 @@ type Task = {
   importance: string;
   client_type: string;
   task_type: string;
+  category: string;
+  status: string;
   subtasks: Subtask[];
 };
 
