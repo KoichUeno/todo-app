@@ -1112,16 +1112,16 @@ export default function Home() {
 
               <div className="mb-8">
                 <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">進行中 ({activeTasks.length})</h2>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto -webkit-overflow-scrolling-touch" style={{ WebkitOverflowScrolling: 'touch' }}>
-                  <table className="w-full text-sm min-w-[640px]">
+                <ScrollableTable>
+                  <table className="w-full text-sm min-w-[800px]">
                     <thead>
                       <tr className="text-[11px] text-gray-400 border-b border-gray-100 bg-gray-50">
                         <th className="text-left py-2 px-3 font-semibold w-8">重要度</th>
                         <th className="text-left py-2 px-3 font-semibold">タスク名</th>
-                        <th className="text-left py-2 px-3 font-semibold hidden sm:table-cell">クライアント</th>
-                        <th className="text-left py-2 px-3 font-semibold hidden md:table-cell">カテゴリ</th>
-                        <th className="text-left py-2 px-3 font-semibold hidden md:table-cell">責任者</th>
-                        <th className="text-left py-2 px-3 font-semibold hidden sm:table-cell">締切</th>
+                        <th className="text-left py-2 px-3 font-semibold">クライアント</th>
+                        <th className="text-left py-2 px-3 font-semibold">カテゴリ</th>
+                        <th className="text-left py-2 px-3 font-semibold">責任者</th>
+                        <th className="text-left py-2 px-3 font-semibold">締切</th>
                         <th className="text-left py-2 px-3 font-semibold w-16">進捗</th>
                         <th className="text-left py-2 px-3 font-semibold w-24">ステータス</th>
                       </tr>
@@ -1407,9 +1407,18 @@ export default function Home() {
                                                 </select>
                                                 <input
                                                   type="date"
+                                                  value={editingSubtaskStartDate}
+                                                  onChange={(e) => setEditingSubtaskStartDate(e.target.value)}
+                                                  className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                                  title="開始日"
+                                                />
+                                                <span className="text-[10px] text-gray-400 self-center">〜</span>
+                                                <input
+                                                  type="date"
                                                   value={editingSubtaskDueDate}
                                                   onChange={(e) => setEditingSubtaskDueDate(e.target.value)}
                                                   className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                                  title="締切日"
                                                 />
                                               </div>
                                             </div>
@@ -1427,8 +1436,13 @@ export default function Home() {
                                               {sub.assignee && (
                                                 <p className="text-xs text-blue-400 mt-0.5 flex items-center gap-0.5"><User size={10} /> {sub.assignee}</p>
                                               )}
-                                              {sub.due_date && (
-                                                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-0.5"><CalendarDays size={10} /> {sub.due_date}</p>
+                                              {(sub.start_date || sub.due_date) && (
+                                                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-0.5">
+                                                  <CalendarDays size={10} />
+                                                  {sub.start_date && sub.due_date && sub.start_date !== sub.due_date
+                                                    ? `${sub.start_date} 〜 ${sub.due_date}`
+                                                    : sub.due_date || sub.start_date}
+                                                </p>
                                               )}
                                             </div>
                                           )}
@@ -1532,7 +1546,7 @@ export default function Home() {
                   })}
                     </tbody>
                   </table>
-                </div>
+                </ScrollableTable>
               </div>
             )}
 
@@ -1996,6 +2010,35 @@ function ClientComboBox({
         </div>
       )}
       {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
+    </div>
+  );
+}
+
+// 横スクロール可能なテーブルラッパー（左右ボタン付き）
+function ScrollableTable({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const scroll = (dir: number) => {
+    ref.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
+  };
+  return (
+    <div className="relative bg-white rounded-2xl shadow-sm border border-gray-100">
+      <button
+        onClick={() => scroll(-1)}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-gray-100 border border-gray-200 rounded-full w-8 h-8 flex items-center justify-center shadow-md text-gray-500 hover:text-gray-800 transition-colors -ml-3"
+        aria-label="左にスクロール"
+      >
+        ‹
+      </button>
+      <button
+        onClick={() => scroll(1)}
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-gray-100 border border-gray-200 rounded-full w-8 h-8 flex items-center justify-center shadow-md text-gray-500 hover:text-gray-800 transition-colors -mr-3"
+        aria-label="右にスクロール"
+      >
+        ›
+      </button>
+      <div ref={ref} className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {children}
+      </div>
     </div>
   );
 }
