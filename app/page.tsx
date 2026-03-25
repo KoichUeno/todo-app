@@ -1394,11 +1394,11 @@ export default function Home() {
                                                 placeholder="重要事項（任意）"
                                                 className="border border-orange-200 rounded px-2 py-0.5 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
                                               />
-                                              <div className="flex gap-2">
+                                              <div className="flex gap-2 flex-wrap items-center">
                                                 <select
                                                   value={editingSubtaskAssignee}
                                                   onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
-                                                  className="flex-1 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                                                  className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                                                 >
                                                   <option value="">責任者を選択</option>
                                                   {profiles.map((p) => (
@@ -1409,7 +1409,7 @@ export default function Home() {
                                                   type="date"
                                                   value={editingSubtaskStartDate}
                                                   onChange={(e) => setEditingSubtaskStartDate(e.target.value)}
-                                                  className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                                  className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                                   title="開始日"
                                                 />
                                                 <span className="text-[10px] text-gray-400 self-center">〜</span>
@@ -1417,7 +1417,7 @@ export default function Home() {
                                                   type="date"
                                                   value={editingSubtaskDueDate}
                                                   onChange={(e) => setEditingSubtaskDueDate(e.target.value)}
-                                                  className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                                  className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                                   title="締切日"
                                                 />
                                               </div>
@@ -1501,11 +1501,11 @@ export default function Home() {
                                 onChange={(e) => setNewSubtaskNotes({ ...newSubtaskNotes, [task.id]: e.target.value })}
                                 className="border border-orange-200 rounded-lg px-3 py-1 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
                               />
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 flex-wrap items-center">
                                 <select
                                   value={newSubtaskAssignees[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
-                                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                                  className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                                 >
                                   <option value="">責任者</option>
                                   {profiles.map((p) => (
@@ -1516,15 +1516,15 @@ export default function Home() {
                                   type="date"
                                   value={newSubtaskStartDates[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })}
-                                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   title="開始日"
                                 />
-                                <span className="text-[10px] text-gray-400">〜</span>
+                                <span className="text-[10px] text-gray-400 self-center">〜</span>
                                 <input
                                   type="date"
                                   value={newSubtaskDueDates[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })}
-                                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   title="締切日"
                                 />
                                 <button
