@@ -1043,21 +1043,26 @@ export default function Home() {
             </div>
 
             {/* フィルター */}
-            <div className="flex gap-2 flex-wrap mb-2">
+            <div className="overflow-x-auto -mx-2 px-2 pb-1 mb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 min-w-max">
               <span className="text-[10px] text-gray-400 self-center">カテゴリー:</span>
               <button onClick={() => setFilterCategory("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterCategory ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
               {CATEGORIES.map((c) => (
                 <button key={c} onClick={() => setFilterCategory(filterCategory === c ? "" : c)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterCategory === c ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-600 hover:bg-purple-100"}`}>{c}</button>
               ))}
+              </div>
             </div>
-            <div className="flex gap-2 flex-wrap mb-3">
+            <div className="overflow-x-auto -mx-2 px-2 pb-1 mb-3" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 min-w-max">
               <span className="text-[10px] text-gray-400 self-center">顧客区分:</span>
               <button onClick={() => setFilterClientType("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterClientType ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
               {["企業", "資産家"].map((ct) => (
                 <button key={ct} onClick={() => setFilterClientType(filterClientType === ct ? "" : ct)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterClientType === ct ? "bg-blue-500 text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>{ct}</button>
               ))}
+              </div>
             </div>
-            <div className="flex gap-2 flex-wrap mb-3 items-center">
+            <div className="overflow-x-auto -mx-2 px-2 pb-1 mb-3" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 items-center min-w-max">
               <span className="text-[10px] text-gray-400">月:</span>
               <select
                 value={filterMonth}
@@ -1097,6 +1102,7 @@ export default function Home() {
                   フィルタをリセット
                 </button>
               )}
+              </div>
             </div>
 
             {/* ビュー切り替え */}
@@ -1235,7 +1241,8 @@ export default function Home() {
                                   rows={1}
                                   className="flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
-                                <div className="flex gap-2 flex-wrap">
+                                <div className="overflow-x-auto -mx-2 px-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                  <div className="flex gap-2 min-w-max">
                                   <ClientComboBox
                                     clients={clients}
                                     value={editingTaskClientId}
@@ -1286,8 +1293,10 @@ export default function Home() {
                                     <option value="定例">定例</option>
                                     <option value="スポット">スポット</option>
                                   </select>
+                                  </div>
                                 </div>
-                                <div className="flex gap-2 items-center flex-wrap">
+                                <div className="overflow-x-auto -mx-2 px-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                  <div className="flex gap-2 items-center min-w-max">
                                   <select
                                     value={editingTaskCategory}
                                     onChange={(e) => { setEditingTaskCategory(e.target.value); setEditingTaskCategoryOther(""); }}
@@ -1305,8 +1314,10 @@ export default function Home() {
                                       className="w-32 border border-purple-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300"
                                     />
                                   )}
+                                  </div>
                                 </div>
-                                <div className="flex gap-2 items-center flex-wrap">
+                                <div className="overflow-x-auto -mx-2 px-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                  <div className="flex gap-2 items-center min-w-max">
                                   <span className="text-[10px] text-gray-400">開始:</span>
                                   <input
                                     type="date"
@@ -1326,8 +1337,9 @@ export default function Home() {
                                     value={editingTaskDataLocation}
                                     onChange={(e) => setEditingTaskDataLocation(e.target.value)}
                                     placeholder="データ保存場所"
-                                    className="flex-1 border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   />
+                                  </div>
                                 </div>
                                 <div className="flex gap-2 items-center pt-2 border-t border-blue-100 mt-2">
                                   <button
@@ -1573,7 +1585,8 @@ export default function Home() {
                                 onChange={(e) => setNewSubtaskNotes({ ...newSubtaskNotes, [task.id]: e.target.value })}
                                 className="border border-orange-200 rounded-lg px-3 py-1 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
                               />
-                              <div className="flex gap-2 flex-wrap items-center">
+                              <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                <div className="flex gap-2 items-center min-w-max">
                                 <select
                                   value={newSubtaskAssignees[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
@@ -1605,6 +1618,7 @@ export default function Home() {
                                 >
                                   追加
                                 </button>
+                                </div>
                               </div>
                             </div>
                           </div>
