@@ -196,7 +196,10 @@ export default function Home() {
     setLoading(true);
     const res = await fetch('/api/tasks');
     const data = await res.json();
-    const tasksWithUI = (data || []).map((t: Task) => ({ ...t, showSubtasks: false }));
+    const tasksWithUI = (data || []).map((t: Task) => ({
+      ...t,
+      showSubtasks: (t.status === '進行中' || (!t.status && !t.is_completed)) && t.subtasks?.length > 0,
+    }));
     setTasks(tasksWithUI);
     setLoading(false);
   };
