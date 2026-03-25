@@ -115,6 +115,7 @@ export default function Home() {
   const [newImportantNote, setNewImportantNote] = useState("");
   const [newAssignee, setNewAssignee] = useState("");
   const [loading, setLoading] = useState(true);
+  const [insertSubtaskAfter, setInsertSubtaskAfter] = useState<{ taskId: string; afterIndex: number } | null>(null);
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [templateDueDate, setTemplateDueDate] = useState("");
@@ -561,6 +562,36 @@ export default function Home() {
     setNewSubtaskNotes({ ...newSubtaskNotes, [taskId]: "" });
     setNewSubtaskDueDates({ ...newSubtaskDueDates, [taskId]: "" });
     setNewSubtaskStartDates({ ...newSubtaskStartDates, [taskId]: "" });
+  };
+
+  // サブタスクを途中に挿入する
+  const insertSubtask = async (taskId: string, afterIndex: number) => {
+    const title = newSubtaskTitles[taskId]?.trim();
+    if (!title) return;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const order_num = afterIndex + 2; // afterIndexの次の位置
+    const assignee = newSubtaskAssignees[taskId]?.trim() || "";
+    const description = newSubtaskDescriptions[taskId]?.trim() || "";
+    const important_note = newSubtaskNotes[taskId]?.trim() || "";
+    const due_date = newSubtaskDueDates[taskId] || null;
+    const start_date = newSubtaskStartDates[taskId] || null;
+    const res = await fetch('/api/subtasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId, title, assignee, order_num, description: description || null, important_note: important_note || null, due_date, start_date }),
+    });
+    const newSub = await res.json();
+    const subs = [...task.subtasks];
+    subs.splice(afterIndex + 1, 0, newSub);
+    setTasks(tasks.map((t) => t.id === taskId ? { ...t, subtasks: subs } : t));
+    setNewSubtaskTitles({ ...newSubtaskTitles, [taskId]: "" });
+    setNewSubtaskAssignees({ ...newSubtaskAssignees, [taskId]: "" });
+    setNewSubtaskDescriptions({ ...newSubtaskDescriptions, [taskId]: "" });
+    setNewSubtaskNotes({ ...newSubtaskNotes, [taskId]: "" });
+    setNewSubtaskDueDates({ ...newSubtaskDueDates, [taskId]: "" });
+    setNewSubtaskStartDates({ ...newSubtaskStartDates, [taskId]: "" });
+    setInsertSubtaskAfter(null);
   };
 
   // サブタスクを削除する
@@ -1347,7 +1378,8 @@ export default function Home() {
                                   {...provided.droppableProps}
                                 >
                                   {task.subtasks.map((sub, index) => (
-                                    <Draggable key={sub.id} draggableId={sub.id} index={index}>
+                                    <React.Fragment key={sub.id}>
+                                    <Draggable draggableId={sub.id} index={index}>
                                       {(provided, snapshot) => (
                                         <div
                                           ref={provided.innerRef}
@@ -1470,8 +1502,48 @@ export default function Home() {
                                         </div>
                                       )}
                                     </Draggable>
-                                  ))}
-                                  {provided.placeholder}
+                                    {/* 途中挿入ボタン */}
+                                    {insertSubtaskAfter?.taskId === task.id && insertSubtaskAfter.afterIndex === index ? (
+                                      <div className="my-1 bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                        <div className="flex flex-col gap-1">
+                                          <input
+                                            type="text"
+                                            placeholder="サブタスク名 *"
+                                            value={newSubtaskTitles[task.id] ?? ""}
+                                            onChange={(e) => setNewSubtaskTitles({ ...newSubtaskTitles, [task.id]: e.target.value })}
+                                            onKeyDown={(e) => e.key === "Enter" && insertSubtask(task.id, index)}
+                                            className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                            autoFocus
+                                          />
+                                          <div className="flex gap-2 flex-wrap items-center">
+                                            <select
+                                              value={newSubtaskAssignees[task.id] ?? ""}
+                                              onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
+                                              className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs bg-white"
+                                            >
+                                              <option value="">責任者</option>
+                                              {profiles.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                            </select>
+                                            <input type="date" value={newSubtaskStartDates[task.id] ?? ""} onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })} className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs" title="開始日" />
+                                            <span className="text-[10px] text-gray-400">〜</span>
+                                            <input type="date" value={newSubtaskDueDates[task.id] ?? ""} onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })} className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs" title="締切日" />
+                                            <button onClick={() => insertSubtask(task.id, index)} className="text-xs bg-blue-500 text-white px-3 py-0.5 rounded font-semibold">追加</button>
+                                            <button onClick={() => setInsertSubtaskAfter(null)} className="text-xs text-gray-400 hover:text-gray-600">キャンセル</button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex justify-center my-0.5 opacity-0 hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => setInsertSubtaskAfter({ taskId: task.id, afterIndex: index })}
+                                          className="text-[10px] text-blue-400 hover:text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                                        >
+                                          ＋ ここに追加
+                                        </button>
+                                      </div>
+                                    )}
+                                    </React.Fragment>
+                                  ))}{provided.placeholder}
                                 </div>
                               )}
                             </Droppable>
