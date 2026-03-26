@@ -224,7 +224,8 @@ function HomeContent() {
         const isOther = cat.startsWith("その他：");
         setEditingTaskCategory(isOther ? "その他" : cat);
         setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
-        // 該当タスクまでスクロール
+        // 該当タスクのサブタスクを展開してスクロール
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, showSubtasks: true } : t));
         setTimeout(() => {
           const el = document.getElementById(`task-${taskId}`);
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -239,7 +240,7 @@ function HomeContent() {
     const data = await res.json();
     const tasksWithUI = (data || []).map((t: Task) => ({
       ...t,
-      showSubtasks: t.subtasks?.length > 0,
+      showSubtasks: false,
     }));
     setTasks(tasksWithUI);
     setLoading(false);
