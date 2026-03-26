@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { createBrowserClient } from "@supabase/ssr";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Repeat,
@@ -92,8 +92,9 @@ type Template = {
   title: string;
 };
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -200,6 +201,37 @@ export default function Home() {
     fetchTemplates();
     fetchClients();
   }, []);
+
+  // URLパラメータ ?task=ID で指定タスクを自動で編集モードにする
+  useEffect(() => {
+    const taskId = searchParams.get('task');
+    if (taskId && tasks.length > 0 && !editingTaskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        setEditingTaskId(task.id);
+        setEditingTaskTitle(task.title);
+        setEditingTaskDescription(task.description ?? "");
+        setEditingTaskDueDate(task.due_date ?? "");
+        setEditingTaskStartDate(task.start_date ?? "");
+        setEditingTaskDataLocation(task.data_location ?? "");
+        setEditingTaskProjectName(task.project_name ?? "");
+        setEditingTaskImportance(task.importance || "通常");
+        setEditingTaskClientType(task.client_type ?? "");
+        setEditingTaskTaskType(task.task_type ?? "");
+        setEditingTaskAssignee(task.assignee ?? "");
+        setEditingTaskClientId(task.client_id ?? "");
+        const cat = task.category ?? "";
+        const isOther = cat.startsWith("その他：");
+        setEditingTaskCategory(isOther ? "その他" : cat);
+        setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
+        // 該当タスクまでスクロール
+        setTimeout(() => {
+          const el = document.getElementById(`task-${taskId}`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    }
+  }, [searchParams, tasks]);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -458,6 +490,53 @@ export default function Home() {
     if (!confirm(`「${task?.title || 'このタスク'}」を削除しますか？この操作は取り消せません。`)) return;
     await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
     setTasks(tasks.filter((t) => t.id !== id));
+  };
+
+  // タスクを丸ごとコピー（サブタスク含む）
+  const duplicateTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    // タスク本体をコピー
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `${task.title}（コピー）`,
+        description: task.description,
+        due_date: task.due_date,
+        start_date: task.start_date,
+        important_note: task.important_note,
+        assignee: task.assignee,
+        project_name: task.project_name,
+        importance: task.importance,
+        client_type: task.client_type,
+        task_type: task.task_type,
+        is_recurring: task.is_recurring,
+        data_location: task.data_location,
+        category: task.category,
+        client_id: task.client_id,
+      }),
+    });
+    if (!res.ok) return;
+    const newTask = await res.json();
+    // サブタスクもコピー
+    for (const sub of task.subtasks) {
+      await fetch('/api/subtasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: newTask.id,
+          title: sub.title,
+          description: sub.description,
+          important_note: sub.important_note,
+          order_num: sub.order_num,
+          assignee: sub.assignee,
+          due_date: sub.due_date,
+          start_date: sub.start_date,
+        }),
+      });
+    }
+    await fetchTasks();
   };
 
   // 同名タスクの過去サブタスクを取得してベースにする
@@ -1399,6 +1478,7 @@ export default function Home() {
                     return (
                     <React.Fragment key={task.id}>
                       <tr
+                        id={`task-${task.id}`}
                         className={`border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors ${isExpanded ? "bg-blue-50/30" : ""}`}
                         onClick={() => toggleSubtasks(task.id)}
                       >
@@ -1599,6 +1679,7 @@ export default function Home() {
                                   <button onClick={() => generateMonthlyTask(task)} className="inline-flex items-center gap-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-600 font-semibold px-2.5 py-1 rounded-lg transition-colors"><Copy size={11} /> 今月分</button>
                                 )}
                                 <button onClick={() => registerAsTemplate(task)} className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-700 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded-lg transition-colors font-semibold"><ClipboardList size={11} /> テンプレ登録</button>
+                                <button onClick={() => duplicateTask(task.id)} className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 px-2.5 py-1 rounded-lg transition-colors font-semibold"><Copy size={11} /> コピー</button>
                                 <button onClick={() => deleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-2.5 py-1 rounded-lg transition-colors font-semibold">削除</button>
                               </div>
                             )}
@@ -1846,6 +1927,12 @@ export default function Home() {
                                 className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-700 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded-full transition-colors font-semibold"
                               >
                                 <ClipboardList size={11} /> テンプレ登録
+                              </button>
+                              <button
+                                onClick={() => duplicateTask(task.id)}
+                                className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 px-2.5 py-1 rounded-full transition-colors font-semibold"
+                              >
+                                <Copy size={11} /> コピー
                               </button>
                               <select
                                 value={task.status || '完了（未請求）'}
@@ -2413,5 +2500,13 @@ function MiniGantt({ task }: { task: Task }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">読み込み中...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
