@@ -64,6 +64,7 @@ export default function ClientsPage() {
 
   // クライアント別タスク
   const [clientTasks, setClientTasks] = useState<Record<string, Task[]>>({});
+  const [tasksFetched, setTasksFetched] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -77,8 +78,8 @@ export default function ClientsPage() {
     if (res.ok) setClients(await res.json());
   };
 
-  const fetchClientTasks = async (clientId: string) => {
-    if (clientTasks[clientId]) return;
+  const fetchClientTasks = async () => {
+    if (tasksFetched) return;
     const res = await fetch("/api/tasks");
     if (res.ok) {
       const all: Task[] = await res.json();
@@ -90,6 +91,7 @@ export default function ClientsPage() {
         }
       });
       setClientTasks(map);
+      setTasksFetched(true);
     }
   };
 
@@ -200,7 +202,7 @@ export default function ClientsPage() {
           {visible.length === 0 && <p className="text-sm text-gray-400 text-center py-8">クライアントがありません</p>}
           {visible.map((c) => (
             <div key={c.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => { const next = expandedId === c.id ? null : c.id; setExpandedId(next); if (next) fetchClientTasks(c.id); }}>
+              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => { const next = expandedId === c.id ? null : c.id; setExpandedId(next); if (next) fetchClientTasks(); }}>
                 <div className="flex items-center gap-2">
                   {c.client_code && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{c.client_code}</span>}
                   {c.branch_number && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-mono">枝{c.branch_number}</span>}

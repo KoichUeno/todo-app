@@ -32,6 +32,7 @@ type Subtask = {
   description: string;
   important_note: string;
   is_completed: boolean;
+  status: '未着手' | '進行中' | '完了';
   order_num: number;
   assignee: string;
   due_date: string;
@@ -138,12 +139,14 @@ export default function Home() {
   const [editingTaskClientId, setEditingTaskClientId] = useState("");
 
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskParentTaskId, setEditingSubtaskParentTaskId] = useState<string | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
   const [editingSubtaskDescription, setEditingSubtaskDescription] = useState("");
   const [editingSubtaskImportantNote, setEditingSubtaskImportantNote] = useState("");
   const [editingSubtaskAssignee, setEditingSubtaskAssignee] = useState("");
   const [editingSubtaskDueDate, setEditingSubtaskDueDate] = useState("");
   const [editingSubtaskStartDate, setEditingSubtaskStartDate] = useState("");
+  const [editingSubtaskStatus, setEditingSubtaskStatus] = useState<'未着手' | '進行中' | '完了'>('未着手');
 
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
   const [newSubtaskDescriptions, setNewSubtaskDescriptions] = useState<Record<string, string>>({});
@@ -175,7 +178,7 @@ export default function Home() {
   const [newTplSubtaskTitle, setNewTplSubtaskTitle] = useState<Record<string, string>>({});
   const [newTplSubtaskAssignee, setNewTplSubtaskAssignee] = useState<Record<string, string>>({});
 
-  const [view, setView] = useState<"list" | "kanban" | "project">("list");
+  const [view, setView] = useState<"list" | "kanban" | "project" | "assignee">("list");
 
   // Undoバー用
   const [undoInfo, setUndoInfo] = useState<{ taskId: string; taskTitle: string; subtasks: Subtask[] } | null>(null);
@@ -204,7 +207,7 @@ export default function Home() {
     const data = await res.json();
     const tasksWithUI = (data || []).map((t: Task) => ({
       ...t,
-      showSubtasks: (t.status === '進行中' || (!t.status && !t.is_completed)) && t.subtasks?.length > 0,
+      showSubtasks: t.subtasks?.length > 0,
     }));
     setTasks(tasksWithUI);
     setLoading(false);
@@ -459,17 +462,23 @@ export default function Home() {
 
   // 同名タスクの過去サブタスクを取得してベースにする
 
-  // サブタスクの完了・取り消しを切り替える
-  const toggleCompleteSubtask = async (taskId: string, subtaskId: string, current: boolean) => {
+  // サブタスクのステータスを3段階でサイクルする（未着手→進行中→完了）
+  const cycleSubtaskStatus = async (taskId: string, subtaskId: string, currentStatus: string) => {
+    const nextMap: Record<string, { status: string; is_completed: boolean }> = {
+      '未着手': { status: '進行中', is_completed: false },
+      '進行中': { status: '完了', is_completed: true },
+      '完了': { status: '未着手', is_completed: false },
+    };
+    const next = nextMap[currentStatus] || nextMap['未着手'];
     await fetch('/api/subtasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: subtaskId, is_completed: !current }),
+      body: JSON.stringify({ id: subtaskId, status: next.status, is_completed: next.is_completed }),
     });
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
     const updatedSubtasks = task.subtasks.map((s) =>
-      s.id === subtaskId ? { ...s, is_completed: !current } : s
+      s.id === subtaskId ? { ...s, status: next.status as Subtask['status'], is_completed: next.is_completed } : s
     );
     const allDone = updatedSubtasks.length > 0 && updatedSubtasks.every((s) => s.is_completed);
     const wasActive = task.status === '進行中' || (!task.status && !task.is_completed);
@@ -483,12 +492,10 @@ export default function Home() {
       setTasks(tasks.map((t) =>
         t.id !== taskId ? t : { ...t, subtasks: updatedSubtasks, is_completed: true, status: '完了（未請求）' }
       ));
-      // Undoバーを表示（8秒後に自動消去）
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       setUndoInfo({ taskId, taskTitle: task.title, subtasks: updatedSubtasks });
       undoTimerRef.current = setTimeout(() => setUndoInfo(null), 8000);
     } else if (!allDone && task.status === '完了（未請求）') {
-      // サブタスクが未完了に戻されたら「進行中」に戻す
       await fetch('/api/tasks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -611,14 +618,14 @@ export default function Home() {
     await fetch('/api/subtasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: subtaskId, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate || null, start_date: editingSubtaskStartDate || null }),
+      body: JSON.stringify({ id: subtaskId, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate || null, start_date: editingSubtaskStartDate || null, status: editingSubtaskStatus, is_completed: editingSubtaskStatus === '完了' }),
     });
     setTasks(tasks.map((t) => {
       if (t.id !== taskId) return t;
       return {
         ...t,
         subtasks: t.subtasks.map((s) =>
-          s.id === subtaskId ? { ...s, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate, start_date: editingSubtaskStartDate } : s
+          s.id === subtaskId ? { ...s, title: editingSubtaskTitle, description: editingSubtaskDescription, important_note: editingSubtaskImportantNote, assignee: editingSubtaskAssignee, due_date: editingSubtaskDueDate, start_date: editingSubtaskStartDate, status: editingSubtaskStatus, is_completed: editingSubtaskStatus === '完了' } : s
         ),
       };
     }));
@@ -743,11 +750,111 @@ export default function Home() {
           </button>
         </div>
       )}
-      <div className="max-w-7xl mx-auto">
+      {/* サブタスク編集パネル（左側固定） */}
+      {editingSubtaskId && (
+        <div className="fixed left-0 top-0 h-full w-72 bg-white border-r-2 border-blue-200 shadow-xl z-50 overflow-y-auto p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-gray-700">サブタスク編集</h3>
+            <button onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] text-gray-400 font-semibold">サブタスク名</label>
+            <input
+              type="text"
+              value={editingSubtaskTitle}
+              onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+              placeholder="サブタスク名"
+              className="border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              autoFocus
+            />
+            <label className="text-[10px] text-gray-400 font-semibold">概要</label>
+            <textarea
+              value={editingSubtaskDescription}
+              onChange={(e) => setEditingSubtaskDescription(e.target.value)}
+              placeholder="概要（任意）"
+              rows={3}
+              className="border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+            />
+            <label className="text-[10px] text-gray-400 font-semibold">重要事項</label>
+            <input
+              type="text"
+              value={editingSubtaskImportantNote}
+              onChange={(e) => setEditingSubtaskImportantNote(e.target.value)}
+              placeholder="重要事項（任意）"
+              className="border border-orange-200 rounded px-2 py-1.5 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
+            />
+            <label className="text-[10px] text-gray-400 font-semibold">ステータス</label>
+            <select
+              value={editingSubtaskStatus}
+              onChange={(e) => setEditingSubtaskStatus(e.target.value as '未着手' | '進行中' | '完了')}
+              className={`border rounded px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 bg-white ${
+                editingSubtaskStatus === '完了' ? 'border-green-300 text-green-600 focus:ring-green-300' :
+                editingSubtaskStatus === '進行中' ? 'border-blue-300 text-blue-600 focus:ring-blue-300' :
+                'border-gray-200 text-gray-600 focus:ring-gray-300'
+              }`}
+            >
+              <option value="未着手">未着手</option>
+              <option value="進行中">進行中</option>
+              <option value="完了">完了</option>
+            </select>
+            <label className="text-[10px] text-gray-400 font-semibold">責任者</label>
+            <select
+              value={editingSubtaskAssignee}
+              onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
+              className="border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            >
+              <option value="">責任者を選択</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+            <label className="text-[10px] text-gray-400 font-semibold">開始日</label>
+            <input
+              type="date"
+              value={editingSubtaskStartDate}
+              onChange={(e) => setEditingSubtaskStartDate(e.target.value)}
+              className="border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <label className="text-[10px] text-gray-400 font-semibold">締切日</label>
+            <input
+              type="date"
+              value={editingSubtaskDueDate}
+              onChange={(e) => setEditingSubtaskDueDate(e.target.value)}
+              className="border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => { if (editingSubtaskParentTaskId && editingSubtaskId) saveSubtaskEdit(editingSubtaskParentTaskId, editingSubtaskId); setEditingSubtaskParentTaskId(null); }}
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 rounded-lg transition-colors"
+            >
+              保存
+            </button>
+            <button
+              onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-sm py-2 rounded-lg transition-colors"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+      {/* 編集パネルが開いている時、背景をクリックで閉じる */}
+      {editingSubtaskId && (
+        <div className="fixed inset-0 bg-black/10 z-40" onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }} />
+      )}
+      <div className="max-w-7xl mx-auto overflow-x-auto">
 
         {/* タイトル */}
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-3xl font-bold text-gray-800">タスク管理</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-800">タスク管理</h1>
+            {currentUser && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
+                <User size={11} className="inline mr-1" />{currentUser.name}
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => router.push("/dashboard")}
@@ -1043,27 +1150,27 @@ export default function Home() {
             </div>
 
             {/* フィルター */}
-            <div className="overflow-x-auto -mx-2 px-2 pb-1 mb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div className="flex gap-2 min-w-max">
-              <span className="text-[10px] text-gray-400 self-center">カテゴリー:</span>
+            <div className="mb-2 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-1.5 items-center whitespace-nowrap">
+              <span className="text-[10px] text-gray-400 self-center shrink-0">カテゴリー:</span>
               <button onClick={() => setFilterCategory("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterCategory ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
               {CATEGORIES.map((c) => (
                 <button key={c} onClick={() => setFilterCategory(filterCategory === c ? "" : c)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterCategory === c ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-600 hover:bg-purple-100"}`}>{c}</button>
               ))}
               </div>
             </div>
-            <div className="overflow-x-auto -mx-2 px-2 pb-1 mb-3" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div className="flex gap-2 min-w-max">
-              <span className="text-[10px] text-gray-400 self-center">顧客区分:</span>
+            <div className="mb-3 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-1.5 items-center whitespace-nowrap">
+              <span className="text-[10px] text-gray-400 self-center shrink-0">顧客区分:</span>
               <button onClick={() => setFilterClientType("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterClientType ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
               {["企業", "資産家"].map((ct) => (
                 <button key={ct} onClick={() => setFilterClientType(filterClientType === ct ? "" : ct)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterClientType === ct ? "bg-blue-500 text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>{ct}</button>
               ))}
               </div>
             </div>
-            <div className="overflow-x-auto -mx-2 px-2 pb-1 mb-3" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div className="flex gap-2 items-center min-w-max">
-              <span className="text-[10px] text-gray-400">月:</span>
+            <div className="mb-3 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 items-center whitespace-nowrap">
+              <span className="text-[10px] text-gray-400 shrink-0">月:</span>
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(e.target.value)}
@@ -1123,7 +1230,13 @@ export default function Home() {
                 onClick={() => setView("project")}
                 className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-semibold transition-colors ${view === "project" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
               >
-                <Folder size={12} /> 案件別
+                <Folder size={12} /> クライアント別
+              </button>
+              <button
+                onClick={() => setView("assignee")}
+                className={`inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full font-semibold transition-colors ${view === "assignee" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+              >
+                <User size={12} /> 担当者別
               </button>
             </div>
 
@@ -1139,10 +1252,124 @@ export default function Home() {
               <KanbanView tasks={tasks} onStatusChange={changeTaskStatus} onDelete={deleteTask} onRegisterTemplate={registerAsTemplate} />
             )}
 
-            {/* 案件別ビュー */}
+            {/* クライアント別ビュー */}
             {!loading && view === "project" && (
-              <ProjectView activeTasks={activeTasks} onToggleComplete={toggleCompleteTask} onDelete={deleteTask} onGenerate={generateMonthlyTask} />
+              <ProjectView activeTasks={activeTasks} onToggleComplete={toggleCompleteTask} onDelete={deleteTask} onGenerate={generateMonthlyTask} clients={clients} />
             )}
+
+            {/* 担当者別ビュー */}
+            {!loading && view === "assignee" && (() => {
+              // 担当者ごとにタスクとサブタスクを集約
+              const assigneeMap: Record<string, { tasks: typeof activeTasks; subtasks: { task: (typeof activeTasks)[0]; subtask: Subtask }[] }> = {};
+              const allActive = tasks.filter(t => t.status === '進行中' || (!t.status && !t.is_completed));
+              allActive.forEach(task => {
+                const assignee = task.assignee || '未割当';
+                if (!assigneeMap[assignee]) assigneeMap[assignee] = { tasks: [], subtasks: [] };
+                assigneeMap[assignee].tasks.push(task);
+                task.subtasks?.forEach((sub: Subtask) => {
+                  if (sub.status === '完了' || sub.is_completed) return;
+                  const subAssignee = sub.assignee || task.assignee || '未割当';
+                  if (!assigneeMap[subAssignee]) assigneeMap[subAssignee] = { tasks: [], subtasks: [] };
+                  assigneeMap[subAssignee].subtasks.push({ task, subtask: sub });
+                });
+              });
+              const myName = currentUser?.name || '';
+              const sortedAssignees = Object.keys(assigneeMap).sort((a, b) => {
+                if (a === myName) return -1;
+                if (b === myName) return 1;
+                if (a === '未割当') return 1;
+                if (b === '未割当') return -1;
+                return a.localeCompare(b);
+              });
+              return (
+                <div className="space-y-6">
+                  {sortedAssignees.map(assignee => {
+                    const data = assigneeMap[assignee];
+                    const inProgressSubs = data.subtasks.filter(s => s.subtask.status === '進行中');
+                    const notStartedSubs = data.subtasks.filter(s => s.subtask.status !== '進行中');
+                    return (
+                      <div key={assignee} className="bg-white border border-gray-200 rounded-xl p-4">
+                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                          <User size={14} className="text-blue-500" />
+                          {assignee}
+                          <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-normal">
+                            タスク {data.tasks.length} / サブタスク {data.subtasks.length}
+                          </span>
+                        </h3>
+                        {/* タスクごとにサブタスクを表示 */}
+                        {(() => {
+                          // サブタスクをタスクIDでグループ化
+                          const taskSubMap: Record<string, { task: (typeof activeTasks)[0]; subs: Subtask[] }> = {};
+                          data.subtasks.forEach(({ task, subtask }) => {
+                            if (!taskSubMap[task.id]) taskSubMap[task.id] = { task, subs: [] };
+                            taskSubMap[task.id].subs.push(subtask);
+                          });
+                          const taskIds = Object.keys(taskSubMap);
+                          if (taskIds.length === 0) return <p className="text-xs text-gray-300 italic">サブタスクなし</p>;
+                          return (
+                            <div className="space-y-3">
+                              {taskIds.map(tid => {
+                                const { task, subs } = taskSubMap[tid];
+                                const inProgress = subs.filter(s => s.status === '進行中');
+                                const notStarted = subs.filter(s => s.status !== '進行中');
+                                return (
+                                  <div key={tid} className="border border-gray-100 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-50 px-3 py-2 flex items-center gap-2">
+                                      <Folder size={12} className="text-gray-400 shrink-0" />
+                                      <span className="text-xs font-bold text-gray-600 truncate">{task.title}</span>
+                                      {task.project_name && <span className="text-[10px] text-gray-400 shrink-0">({task.project_name})</span>}
+                                      {task.due_date && <span className="text-[10px] text-gray-400 shrink-0 ml-auto">締切 {task.due_date}</span>}
+                                    </div>
+                                    <div className="px-3 py-2 space-y-1">
+                                      {inProgress.map(subtask => (
+                                        <div key={subtask.id} className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
+                                          <button
+                                            onClick={() => cycleSubtaskStatus(task.id, subtask.id, subtask.status || '進行中')}
+                                            className="w-4 h-4 mt-0.5 rounded-full border-2 bg-blue-400 border-blue-400 text-white flex items-center justify-center text-[8px] shrink-0"
+                                          >▶</button>
+                                          <div className="flex-1 min-w-0">
+                                            <span className="text-sm text-blue-700 font-semibold truncate block">{subtask.title}</span>
+                                            {subtask.description && <p className="text-xs text-gray-500 mt-0.5">{subtask.description}</p>}
+                                            {subtask.important_note && <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-0.5"><AlertTriangle size={10} /> {subtask.important_note}</p>}
+                                            {subtask.due_date && <span className="text-[10px] text-gray-400">締切 {subtask.due_date}</span>}
+                                          </div>
+                                          <button
+                                            onClick={() => { setEditingSubtaskParentTaskId(task.id); setEditingSubtaskId(subtask.id); setEditingSubtaskTitle(subtask.title); setEditingSubtaskDescription(subtask.description ?? ""); setEditingSubtaskImportantNote(subtask.important_note ?? ""); setEditingSubtaskAssignee(subtask.assignee ?? ""); setEditingSubtaskDueDate(subtask.due_date ?? ""); setEditingSubtaskStartDate(subtask.start_date ?? ""); setEditingSubtaskStatus(subtask.status || '進行中'); }}
+                                            className="text-xs text-blue-400 hover:text-blue-600 shrink-0"
+                                          >編集</button>
+                                        </div>
+                                      ))}
+                                      {notStarted.map(subtask => (
+                                        <div key={subtask.id} className="flex items-start gap-2 bg-white border border-gray-100 rounded px-2 py-1.5">
+                                          <button
+                                            onClick={() => cycleSubtaskStatus(task.id, subtask.id, subtask.status || '未着手')}
+                                            className="w-4 h-4 mt-0.5 rounded-full border-2 border-gray-300 hover:border-blue-400 shrink-0"
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            <span className="text-sm text-gray-700 truncate block">{subtask.title}</span>
+                                            {subtask.description && <p className="text-xs text-gray-500 mt-0.5">{subtask.description}</p>}
+                                            {subtask.important_note && <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-0.5"><AlertTriangle size={10} /> {subtask.important_note}</p>}
+                                            {subtask.due_date && <span className="text-[10px] text-gray-400">締切 {subtask.due_date}</span>}
+                                          </div>
+                                          <button
+                                            onClick={() => { setEditingSubtaskParentTaskId(task.id); setEditingSubtaskId(subtask.id); setEditingSubtaskTitle(subtask.title); setEditingSubtaskDescription(subtask.description ?? ""); setEditingSubtaskImportantNote(subtask.important_note ?? ""); setEditingSubtaskAssignee(subtask.assignee ?? ""); setEditingSubtaskDueDate(subtask.due_date ?? ""); setEditingSubtaskStartDate(subtask.start_date ?? ""); setEditingSubtaskStatus(subtask.status || '未着手'); }}
+                                            className="text-xs text-gray-400 hover:text-blue-400 shrink-0"
+                                          >編集</button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* 進行中タスク一覧（テーブル＋展開式） */}
             {!loading && view === "list" && activeTasks.length > 0 && (
@@ -1220,18 +1447,17 @@ export default function Home() {
                       </tr>
                       {/* 展開エリア：編集フォーム＋サブタスク＋アクション */}
                       {isExpanded && (
-                        <tr><td colSpan={8} className="p-0">
-                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3">
+                        <tr><td colSpan={8} className="p-0 sticky left-0" style={{ maxWidth: '100vw' }}>
+                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                             {/* 編集フォーム */}
                             {editingTaskId === task.id ? (
                               <div className="flex flex-col gap-2 mb-3 bg-white rounded-xl p-3 border border-blue-100">
-                                <div className="flex gap-2 flex-wrap">
                                 <input
                                   type="text"
                                   value={editingTaskTitle}
                                   onChange={(e) => setEditingTaskTitle(e.target.value)}
                                   placeholder="タスク名"
-                                  className="flex-1 min-w-[200px] border border-blue-300 rounded-lg px-3 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  className="w-full border border-blue-300 rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   autoFocus
                                 />
                                 <textarea
@@ -1239,10 +1465,10 @@ export default function Home() {
                                   onChange={(e) => setEditingTaskDescription(e.target.value)}
                                   placeholder="概要（任意）"
                                   rows={1}
-                                  className="flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
-                                <div className="overflow-x-auto -mx-2 px-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                  <div className="flex gap-2 min-w-max">
+                                <div className="overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                <div className="flex gap-2 items-center whitespace-nowrap">
                                   <ClientComboBox
                                     clients={clients}
                                     value={editingTaskClientId}
@@ -1293,10 +1519,10 @@ export default function Home() {
                                     <option value="定例">定例</option>
                                     <option value="スポット">スポット</option>
                                   </select>
-                                  </div>
                                 </div>
-                                <div className="overflow-x-auto -mx-2 px-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                  <div className="flex gap-2 items-center min-w-max">
+                                </div>
+                                <div className="overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                <div className="flex gap-2 items-center whitespace-nowrap">
                                   <select
                                     value={editingTaskCategory}
                                     onChange={(e) => { setEditingTaskCategory(e.target.value); setEditingTaskCategoryOther(""); }}
@@ -1314,32 +1540,34 @@ export default function Home() {
                                       className="w-32 border border-purple-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300"
                                     />
                                   )}
-                                  </div>
                                 </div>
-                                <div className="overflow-x-auto -mx-2 px-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                  <div className="flex gap-2 items-center min-w-max">
-                                  <span className="text-[10px] text-gray-400">開始:</span>
+                                </div>
+                                <div className="overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                <div className="flex gap-2 items-center whitespace-nowrap">
+                                  <span className="text-[10px] text-gray-400 shrink-0">開始:</span>
                                   <input
                                     type="date"
                                     value={editingTaskStartDate}
                                     onChange={(e) => setEditingTaskStartDate(e.target.value)}
-                                    className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    className="w-[130px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    title="開始日"
                                   />
-                                  <span className="text-[10px] text-gray-400">締切:</span>
+                                  <span className="text-[10px] text-gray-400 shrink-0">締切:</span>
                                   <input
                                     type="date"
                                     value={editingTaskDueDate}
                                     onChange={(e) => setEditingTaskDueDate(e.target.value)}
-                                    className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    className="w-[130px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    title="締切日"
                                   />
                                   <input
                                     type="text"
                                     value={editingTaskDataLocation}
                                     onChange={(e) => setEditingTaskDataLocation(e.target.value)}
                                     placeholder="データ保存場所"
-                                    className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    className="min-w-[120px] border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   />
-                                  </div>
+                                </div>
                                 </div>
                                 <div className="flex gap-2 items-center pt-2 border-t border-blue-100 mt-2">
                                   <button
@@ -1356,7 +1584,6 @@ export default function Home() {
                                   </button>
                                 </div>
                               </div>
-                            </div>
                             ) : (
                               <div className="flex flex-wrap gap-2 mb-3">
                                 <button
@@ -1407,70 +1634,25 @@ export default function Home() {
                                             ⠿
                                           </span>
                                           <button
-                                            onClick={() => toggleCompleteSubtask(task.id, sub.id, sub.is_completed)}
-                                            className={`mt-1 w-5 h-5 rounded-full border-2 shrink-0 transition-colors ${
-                                              sub.is_completed
-                                                ? "bg-green-400 border-green-400"
-                                                : "border-gray-300 hover:border-green-400"
+                                            onClick={() => cycleSubtaskStatus(task.id, sub.id, sub.status || (sub.is_completed ? '完了' : '未着手'))}
+                                            className={`mt-1 w-5 h-5 rounded-full border-2 shrink-0 transition-colors flex items-center justify-center text-[8px] font-bold ${
+                                              (sub.status || (sub.is_completed ? '完了' : '未着手')) === '完了'
+                                                ? "bg-green-400 border-green-400 text-white"
+                                                : (sub.status === '進行中')
+                                                  ? "bg-blue-400 border-blue-400 text-white"
+                                                  : "border-gray-300 hover:border-blue-400"
                                             }`}
-                                          />
-                                          {editingSubtaskId === sub.id ? (
-                                            <div className="flex-1 flex flex-col gap-1">
-                                              <input
-                                                type="text"
-                                                value={editingSubtaskTitle}
-                                                onChange={(e) => setEditingSubtaskTitle(e.target.value)}
-                                                placeholder="サブタスク名"
-                                                className="border border-blue-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                                autoFocus
-                                              />
-                                              <textarea
-                                                value={editingSubtaskDescription}
-                                                onChange={(e) => setEditingSubtaskDescription(e.target.value)}
-                                                placeholder="概要（任意）"
-                                                rows={2}
-                                                className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                                              />
-                                              <input
-                                                type="text"
-                                                value={editingSubtaskImportantNote}
-                                                onChange={(e) => setEditingSubtaskImportantNote(e.target.value)}
-                                                placeholder="重要事項（任意）"
-                                                className="border border-orange-200 rounded px-2 py-0.5 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
-                                              />
-                                              <div className="flex gap-2 flex-wrap items-center">
-                                                <select
-                                                  value={editingSubtaskAssignee}
-                                                  onChange={(e) => setEditingSubtaskAssignee(e.target.value)}
-                                                  className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                                                >
-                                                  <option value="">責任者を選択</option>
-                                                  {profiles.map((p) => (
-                                                    <option key={p.id} value={p.name}>{p.name}</option>
-                                                  ))}
-                                                </select>
-                                                <input
-                                                  type="date"
-                                                  value={editingSubtaskStartDate}
-                                                  onChange={(e) => setEditingSubtaskStartDate(e.target.value)}
-                                                  className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                                  title="開始日"
-                                                />
-                                                <span className="text-[10px] text-gray-400 self-center">〜</span>
-                                                <input
-                                                  type="date"
-                                                  value={editingSubtaskDueDate}
-                                                  onChange={(e) => setEditingSubtaskDueDate(e.target.value)}
-                                                  className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                                  title="締切日"
-                                                />
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <div className="flex-1">
-                                              <span className={`text-sm ${sub.is_completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                                            title={`ステータス: ${sub.status || (sub.is_completed ? '完了' : '未着手')}（クリックで変更）`}
+                                          >
+                                            {(sub.status === '進行中') && '▶'}
+                                          </button>
+                                          <div className={`flex-1 ${editingSubtaskId === sub.id ? 'ring-2 ring-blue-300 rounded px-1' : ''}`}>
+                                              <span className={`text-sm ${sub.is_completed ? "line-through text-gray-400" : sub.status === '進行中' ? "text-blue-700 font-semibold" : "text-gray-700"}`}>
                                                 {sub.title}
                                               </span>
+                                              {sub.status === '進行中' && (
+                                                <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold">進行中</span>
+                                              )}
                                               {sub.description && (
                                                 <p className="text-xs text-gray-400 mt-0.5">{sub.description}</p>
                                               )}
@@ -1488,18 +1670,12 @@ export default function Home() {
                                                     : sub.due_date || sub.start_date}
                                                 </p>
                                               )}
-                                            </div>
-                                          )}
+                                          </div>
                                           {editingSubtaskId === sub.id ? (
-                                            <button
-                                              onClick={() => saveSubtaskEdit(task.id, sub.id)}
-                                              className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-3 py-1 rounded-lg transition-colors shrink-0"
-                                            >
-                                              保存
-                                            </button>
+                                            <span className="text-[10px] text-blue-500 font-semibold shrink-0">編集中</span>
                                           ) : (
                                             <button
-                                              onClick={() => { setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); setEditingSubtaskDueDate(sub.due_date ?? ""); setEditingSubtaskStartDate(sub.start_date ?? ""); }}
+                                              onClick={() => { setEditingSubtaskParentTaskId(task.id); setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); setEditingSubtaskDueDate(sub.due_date ?? ""); setEditingSubtaskStartDate(sub.start_date ?? ""); setEditingSubtaskStatus(sub.status || (sub.is_completed ? '完了' : '未着手')); }}
                                               className="text-xs text-gray-400 hover:text-blue-400 transition-colors shrink-0"
                                             >
                                               編集
@@ -1527,19 +1703,18 @@ export default function Home() {
                                             className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                                             autoFocus
                                           />
-                                          <div className="flex gap-2 flex-wrap items-center">
+                                          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:flex-wrap sm:items-center">
                                             <select
                                               value={newSubtaskAssignees[task.id] ?? ""}
                                               onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
-                                              className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs bg-white"
+                                              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white col-span-2 sm:w-32"
                                             >
                                               <option value="">責任者</option>
                                               {profiles.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
                                             </select>
-                                            <input type="date" value={newSubtaskStartDates[task.id] ?? ""} onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })} className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs" title="開始日" />
-                                            <span className="text-[10px] text-gray-400">〜</span>
-                                            <input type="date" value={newSubtaskDueDates[task.id] ?? ""} onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })} className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs" title="締切日" />
-                                            <button onClick={() => insertSubtask(task.id, index)} className="text-xs bg-blue-500 text-white px-3 py-0.5 rounded font-semibold">追加</button>
+                                            <input type="date" value={newSubtaskStartDates[task.id] ?? ""} onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })} className="border border-gray-200 rounded px-1.5 py-1 text-xs" title="開始日" />
+                                            <input type="date" value={newSubtaskDueDates[task.id] ?? ""} onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })} className="border border-gray-200 rounded px-1.5 py-1 text-xs" title="締切日" />
+                                            <button onClick={() => insertSubtask(task.id, index)} className="text-xs bg-blue-500 text-white px-3 py-1 rounded font-semibold">追加</button>
                                             <button onClick={() => setInsertSubtaskAfter(null)} className="text-xs text-gray-400 hover:text-gray-600">キャンセル</button>
                                           </div>
                                         </div>
@@ -1585,12 +1760,11 @@ export default function Home() {
                                 onChange={(e) => setNewSubtaskNotes({ ...newSubtaskNotes, [task.id]: e.target.value })}
                                 className="border border-orange-200 rounded-lg px-3 py-1 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
                               />
-                              <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                <div className="flex gap-2 items-center min-w-max">
+                              <div className="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:flex-wrap sm:items-center">
                                 <select
                                   value={newSubtaskAssignees[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
-                                  className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                                  className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white col-span-2 sm:w-32"
                                 >
                                   <option value="">責任者</option>
                                   {profiles.map((p) => (
@@ -1601,24 +1775,24 @@ export default function Home() {
                                   type="date"
                                   value={newSubtaskStartDates[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })}
-                                  className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  className="border border-gray-200 rounded-lg px-1.5 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   title="開始日"
+                                  placeholder="開始日"
                                 />
-                                <span className="text-[10px] text-gray-400 self-center">〜</span>
                                 <input
                                   type="date"
                                   value={newSubtaskDueDates[task.id] ?? ""}
                                   onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })}
-                                  className="w-32 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  className="border border-gray-200 rounded-lg px-1.5 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                   title="締切日"
+                                  placeholder="締切日"
                                 />
                                 <button
                                   onClick={() => addSubtask(task.id)}
-                                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1 rounded-lg transition-colors"
+                                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors col-span-2 sm:col-span-1"
                                 >
                                   追加
                                 </button>
-                                </div>
                               </div>
                             </div>
                           </div>
@@ -1809,24 +1983,27 @@ function KanbanView({
   );
 }
 
-// 案件別ビュー
+// クライアント別ビュー
 function ProjectView({
   activeTasks,
   onToggleComplete,
   onDelete,
   onGenerate,
+  clients,
 }: {
   activeTasks: Task[];
   onToggleComplete: (id: string, current: boolean) => void;
   onDelete: (id: string) => void;
   onGenerate: (task: Task) => void;
+  clients: Client[];
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  // project_name でグループ化（未設定は「その他」）
+  // クライアント名でグループ化（未設定は「その他」）
   const groups: Record<string, Task[]> = {};
   for (const task of activeTasks) {
-    const key = task.project_name?.trim() || "その他";
+    const client = clients.find(c => c.id === task.client_id);
+    const key = client?.name || task.project_name?.trim() || "その他";
     if (!groups[key]) groups[key] = [];
     groups[key].push(task);
   }
@@ -1854,7 +2031,7 @@ function ProjectView({
               className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Folder size={13} /> {project}</span>
+                <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Building2 size={13} /> {project}</span>
                 {recurringTasks.length > 0 && (
                   <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold"><Repeat size={9} /> {recurringTasks.length}件 毎月</span>
                 )}
