@@ -177,6 +177,44 @@ function HomeContent() {
   const [newCategory, setNewCategory] = useState("");
   const [newCategoryOther, setNewCategoryOther] = useState("");
 
+  // 新規タスクフォームの下書き自動保存・復元
+  useEffect(() => {
+    try {
+      const draft = localStorage.getItem("taskDraft");
+      if (draft) {
+        const d = JSON.parse(draft);
+        if (d.title) setNewTitle(d.title);
+        if (d.description) setNewDescription(d.description);
+        if (d.dueDate) setNewDueDate(d.dueDate);
+        if (d.importantNote) setNewImportantNote(d.importantNote);
+        if (d.assignee) setNewAssignee(d.assignee);
+        if (d.projectName) setNewProjectName(d.projectName);
+        if (d.clientId) setNewClientId(d.clientId);
+        if (d.isRecurring) setNewIsRecurring(d.isRecurring);
+        if (d.importance && d.importance !== "通常") setNewImportance(d.importance);
+        if (d.clientType) setNewClientType(d.clientType);
+        if (d.taskType) setNewTaskType(d.taskType);
+        if (d.dataLocation) setNewDataLocation(d.dataLocation);
+        if (d.category) setNewCategory(d.category);
+        if (d.categoryOther) setNewCategoryOther(d.categoryOther);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const draft = {
+      title: newTitle, description: newDescription, dueDate: newDueDate,
+      importantNote: newImportantNote, assignee: newAssignee, projectName: newProjectName,
+      clientId: newClientId, isRecurring: newIsRecurring, importance: newImportance,
+      clientType: newClientType, taskType: newTaskType, dataLocation: newDataLocation,
+      category: newCategory, categoryOther: newCategoryOther,
+    };
+    // 何か入力があるときだけ保存
+    if (newTitle || newDescription || newDueDate || newImportantNote) {
+      localStorage.setItem("taskDraft", JSON.stringify(draft));
+    }
+  }, [newTitle, newDescription, newDueDate, newImportantNote, newAssignee, newProjectName, newClientId, newIsRecurring, newImportance, newClientType, newTaskType, newDataLocation, newCategory, newCategoryOther]);
+
   const [editingTaskCategory, setEditingTaskCategory] = useState("");
   const [editingTaskCategoryOther, setEditingTaskCategoryOther] = useState("");
 
@@ -456,6 +494,7 @@ function HomeContent() {
       setNewCategory("");
       setNewCategoryOther("");
       setNewClientId("");
+      localStorage.removeItem("taskDraft");
     } catch (e) {
       setAddTaskError("ネットワークエラーが発生しました。再度お試しください。");
     } finally {
@@ -1150,7 +1189,12 @@ function HomeContent() {
 
             {/* タスク追加フォーム */}
             <div className="bg-white rounded-2xl shadow-sm p-5 mb-8 border border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">新しいタスクを追加</h2>
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">新しいタスクを追加</h2>
+                {(newTitle || newDescription || newDueDate || newImportantNote) && (
+                  <span className="text-[10px] text-green-500 bg-green-50 px-2 py-0.5 rounded-full">💾 下書き自動保存中</span>
+                )}
+              </div>
               <input
                 type="text"
                 placeholder="タスク名を入力..."
