@@ -422,29 +422,45 @@ function HomeContent() {
   };
 
   // タスクを追加する
+  const [addingTask, setAddingTask] = useState(false);
+  const [addTaskError, setAddTaskError] = useState("");
+
   const addTask = async () => {
-    if (!newTitle.trim()) return;
-    const res = await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, description: newDescription || null, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null, client_id: newClientId || null }),
-    });
-    const newTask = await res.json();
-    setTasks((prev) => [{ ...newTask, subtasks: [], showSubtasks: false }, ...prev]);
-    setNewTitle("");
-    setNewDescription("");
-    setNewDueDate("");
-    setNewImportantNote("");
-    setNewAssignee("");
-    setNewProjectName("");
-    setNewIsRecurring(false);
-    setNewImportance("通常");
-    setNewClientType("");
-    setNewTaskType("");
-    setNewDataLocation("");
-    setNewCategory("");
-    setNewCategoryOther("");
-    setNewClientId("");
+    if (!newTitle.trim() || addingTask) return;
+    setAddingTask(true);
+    setAddTaskError("");
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle, description: newDescription || null, due_date: newDueDate || null, important_note: newImportantNote || null, assignee: newAssignee || null, project_name: newProjectName || null, is_recurring: newIsRecurring, importance: newImportance, client_type: newClientType || null, task_type: newTaskType || null, data_location: newDataLocation || null, category: resolveCategory(newCategory, newCategoryOther) || null, client_id: newClientId || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setAddTaskError(`登録に失敗しました: ${err.error || res.statusText}`);
+        return;
+      }
+      const newTask = await res.json();
+      setTasks((prev) => [{ ...newTask, subtasks: [], showSubtasks: false }, ...prev]);
+      setNewTitle("");
+      setNewDescription("");
+      setNewDueDate("");
+      setNewImportantNote("");
+      setNewAssignee("");
+      setNewProjectName("");
+      setNewIsRecurring(false);
+      setNewImportance("通常");
+      setNewClientType("");
+      setNewTaskType("");
+      setNewDataLocation("");
+      setNewCategory("");
+      setNewCategoryOther("");
+      setNewClientId("");
+    } catch (e) {
+      setAddTaskError("ネットワークエラーが発生しました。再度お試しください。");
+    } finally {
+      setAddingTask(false);
+    }
   };
 
   // タスクを完了にする／完了を取り消す
@@ -470,31 +486,47 @@ function HomeContent() {
   };
 
   // タスクの編集を保存する
+  const [savingTask, setSavingTask] = useState(false);
+  const [saveTaskError, setSaveTaskError] = useState("");
+
   const saveTaskEdit = async (id: string) => {
-    if (!editingTaskTitle.trim()) return;
-    await fetch('/api/tasks', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id,
-        title: editingTaskTitle,
-        description: editingTaskDescription,
-        due_date: editingTaskDueDate || null,
-        start_date: editingTaskStartDate || null,
-        data_location: editingTaskDataLocation || null,
-        project_name: editingTaskProjectName || null,
-        importance: editingTaskImportance,
-        client_type: editingTaskClientType || null,
-        task_type: editingTaskTaskType || null,
-        assignee: editingTaskAssignee || null,
-        category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) || null,
-        client_id: editingTaskClientId || null,
-      }),
-    });
-    setTasks(tasks.map((t) =>
-      t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, start_date: editingTaskStartDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId } : t
-    ));
-    setEditingTaskId(null);
+    if (!editingTaskTitle.trim() || savingTask) return;
+    setSavingTask(true);
+    setSaveTaskError("");
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          title: editingTaskTitle,
+          description: editingTaskDescription,
+          due_date: editingTaskDueDate || null,
+          start_date: editingTaskStartDate || null,
+          data_location: editingTaskDataLocation || null,
+          project_name: editingTaskProjectName || null,
+          importance: editingTaskImportance,
+          client_type: editingTaskClientType || null,
+          task_type: editingTaskTaskType || null,
+          assignee: editingTaskAssignee || null,
+          category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) || null,
+          client_id: editingTaskClientId || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setSaveTaskError(`保存に失敗しました: ${err.error || res.statusText}`);
+        return;
+      }
+      setTasks(tasks.map((t) =>
+        t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, start_date: editingTaskStartDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId } : t
+      ));
+      setEditingTaskId(null);
+    } catch (e) {
+      setSaveTaskError("ネットワークエラーが発生しました。再度お試しください。");
+    } finally {
+      setSavingTask(false);
+    }
   };
 
   // タスクを削除する
@@ -1241,11 +1273,13 @@ function HomeContent() {
                 />
                 <button
                   onClick={addTask}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
+                  disabled={addingTask}
+                  className={`font-semibold px-6 py-2 rounded-lg transition-colors ${addingTask ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"} text-white`}
                 >
-                  追加
+                  {addingTask ? "登録中..." : "追加"}
                 </button>
               </div>
+              {addTaskError && <p className="text-red-500 text-sm mt-1">{addTaskError}</p>}
             </div>
 
             {/* テンプレートから追加 */}
@@ -1799,12 +1833,14 @@ function HomeContent() {
                                   />
                                 </div>
                                 </div>
+                                {saveTaskError && <p className="text-red-500 text-sm">{saveTaskError}</p>}
                                 <div className="flex gap-2 items-center pt-2 border-t border-blue-100 mt-2">
                                   <button
                                     onClick={() => saveTaskEdit(task.id)}
-                                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white font-bold px-5 py-1.5 rounded-lg transition-colors shadow-sm"
+                                    disabled={savingTask}
+                                    className={`text-sm font-bold px-5 py-1.5 rounded-lg transition-colors shadow-sm text-white ${savingTask ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"}`}
                                   >
-                                    保存する
+                                    {savingTask ? "保存中..." : "保存する"}
                                   </button>
                                   <button
                                     onClick={() => setEditingTaskId(null)}
