@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // テンプレートのサブタスク一覧を取得
 export async function GET(request: NextRequest) {
@@ -8,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   if (!template_id) return NextResponse.json({ error: 'template_id is required' }, { status: 400 })
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('template_subtasks')
     .select('*')
     .eq('template_id', template_id)
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { template_id, title, assignee, order_num } = body
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('template_subtasks')
     .insert({ template_id, title, assignee, order_num })
     .select()
@@ -40,7 +45,7 @@ export async function DELETE(request: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('template_subtasks')
     .delete()
     .eq('id', id)

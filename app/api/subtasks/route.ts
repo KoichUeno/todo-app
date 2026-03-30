@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // サブタスクを追加
 export async function POST(request: NextRequest) {
   const body = await request.json()
   const { task_id, title, description, order_num, assignee, important_note, due_date, start_date } = body
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('subtasks')
     .insert({ task_id, title, description, order_num, assignee, important_note, due_date, start_date })
     .select()
@@ -21,7 +26,7 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const { id, ...updates } = body
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('subtasks')
     .update(updates)
     .eq('id', id)
@@ -39,7 +44,7 @@ export async function DELETE(request: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('subtasks')
     .delete()
     .eq('id', id)

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // テンプレート一覧を取得
 export async function GET() {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('templates')
     .select('*')
     .order('created_at', { ascending: true })
@@ -21,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'タイトルは必須です' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('templates')
     .insert({ title })
     .select()
@@ -38,7 +43,7 @@ export async function DELETE(request: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'IDが必要です' }, { status: 400 })
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('templates')
     .delete()
     .eq('id', id)

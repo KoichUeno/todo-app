@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   if (!subtaskId) return NextResponse.json({ error: 'subtask_id is required' }, { status: 400 })
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('subtask_memos')
     .select('*')
     .eq('subtask_id', subtaskId)
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'subtask_id and content are required' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('subtask_memos')
     .insert({ subtask_id, content, user_name })
     .select()
@@ -49,7 +49,7 @@ export async function DELETE(request: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('subtask_memos')
     .delete()
     .eq('id', id)
