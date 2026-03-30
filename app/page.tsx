@@ -216,6 +216,46 @@ function HomeContent() {
     }
   }, [newTitle, newDescription, newDueDate, newImportantNote, newAssignee, newProjectName, newClientId, newIsRecurring, newImportance, newClientType, newTaskType, newDataLocation, newCategory, newCategoryOther]);
 
+  // サブタスク編集パネルの下書き自動保存・復元
+  useEffect(() => {
+    try {
+      const draft = localStorage.getItem("subtaskDraft");
+      if (draft) {
+        const d = JSON.parse(draft);
+        if (d.parentTaskId) setEditingSubtaskParentTaskId(d.parentTaskId);
+        if (d.subtaskId) setEditingSubtaskId(d.subtaskId);
+        if (d.title) setEditingSubtaskTitle(d.title);
+        if (d.description) setEditingSubtaskDescription(d.description);
+        if (d.importantNote) setEditingSubtaskImportantNote(d.importantNote);
+        if (d.assignee) setEditingSubtaskAssignee(d.assignee);
+        if (d.dueDate) setEditingSubtaskDueDate(d.dueDate);
+        if (d.startDate) setEditingSubtaskStartDate(d.startDate);
+        if (d.status) setEditingSubtaskStatus(d.status);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (editingSubtaskId && (editingSubtaskTitle || editingSubtaskDescription || editingSubtaskImportantNote)) {
+      const draft = {
+        parentTaskId: editingSubtaskParentTaskId,
+        subtaskId: editingSubtaskId,
+        title: editingSubtaskTitle,
+        description: editingSubtaskDescription,
+        importantNote: editingSubtaskImportantNote,
+        assignee: editingSubtaskAssignee,
+        dueDate: editingSubtaskDueDate,
+        startDate: editingSubtaskStartDate,
+        status: editingSubtaskStatus,
+      };
+      localStorage.setItem("subtaskDraft", JSON.stringify(draft));
+    }
+  }, [editingSubtaskId, editingSubtaskParentTaskId, editingSubtaskTitle, editingSubtaskDescription, editingSubtaskImportantNote, editingSubtaskAssignee, editingSubtaskDueDate, editingSubtaskStartDate, editingSubtaskStatus]);
+
+  const clearSubtaskDraft = () => {
+    localStorage.removeItem("subtaskDraft");
+  };
+
   const [editingTaskCategory, setEditingTaskCategory] = useState("");
   const [editingTaskCategoryOther, setEditingTaskCategoryOther] = useState("");
 
@@ -817,6 +857,32 @@ function HomeContent() {
     setInsertSubtaskAfter(null);
   };
 
+  // サブタスクをコピーする
+  const duplicateSubtask = async (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const sub = task?.subtasks.find((s) => s.id === subtaskId);
+    if (!task || !sub) return;
+    const order_num = task.subtasks.length + 1;
+    const res = await fetch('/api/subtasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_id: taskId,
+        title: sub.title + '（コピー）',
+        assignee: sub.assignee || "",
+        order_num,
+        description: sub.description || null,
+        important_note: sub.important_note || null,
+        due_date: sub.due_date || null,
+        start_date: sub.start_date || null,
+      }),
+    });
+    if (res.ok) {
+      const newSub = await res.json();
+      setTasks(tasks.map((t) => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSub] } : t));
+    }
+  };
+
   // サブタスクを削除する
   const deleteSubtask = async (taskId: string, subtaskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
@@ -847,6 +913,7 @@ function HomeContent() {
     }));
     setEditingSubtaskId(null);
     setEditingSubtaskTitle("");
+    clearSubtaskDraft();
   };
 
   // サブタスクをドラッグ＆ドロップで並び替える
@@ -970,8 +1037,13 @@ function HomeContent() {
       {editingSubtaskId && (
         <div className="fixed left-0 top-0 h-full w-72 bg-white border-r-2 border-blue-200 shadow-xl z-50 overflow-y-auto p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-700">{editingSubtaskId === 'new' ? 'サブタスク追加' : 'サブタスク編集'}</h3>
-            <button onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
+            <div>
+              <h3 className="text-sm font-bold text-gray-700">{editingSubtaskId === 'new' ? 'サブタスク追加' : 'サブタスク編集'}</h3>
+              {(editingSubtaskTitle || editingSubtaskDescription) && (
+                <span className="text-[9px] text-green-500">💾 下書き保存中</span>
+              )}
+            </div>
+            <button onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); clearSubtaskDraft(); }} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-[10px] text-gray-400 font-semibold">サブタスク名</label>
@@ -1123,6 +1195,7 @@ function HomeContent() {
                   setEditingSubtaskDueDate("");
                   setEditingSubtaskStartDate("");
                   setEditingSubtaskStatus('未着手');
+                  clearSubtaskDraft();
                 } else {
                   saveSubtaskEdit(editingSubtaskParentTaskId, editingSubtaskId!);
                   setEditingSubtaskParentTaskId(null);
@@ -1133,7 +1206,7 @@ function HomeContent() {
               {editingSubtaskId === 'new' ? '追加' : '保存'}
             </button>
             <button
-              onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }}
+              onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); clearSubtaskDraft(); }}
               className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-sm py-2 rounded-lg transition-colors"
             >
               キャンセル
@@ -1143,7 +1216,7 @@ function HomeContent() {
       )}
       {/* 編集パネルが開いている時、背景をクリックで閉じる */}
       {editingSubtaskId && (
-        <div className="fixed inset-0 bg-black/10 z-40" onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }} />
+        <div className="fixed inset-0 bg-black/10 z-40" onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); clearSubtaskDraft(); }} />
       )}
       <div className="max-w-7xl mx-auto overflow-x-auto">
 
@@ -2002,6 +2075,13 @@ function HomeContent() {
                                               編集
                                             </button>
                                           )}
+                                          <button
+                                            onClick={() => duplicateSubtask(task.id, sub.id)}
+                                            className="text-xs text-gray-300 hover:text-indigo-400 transition-colors shrink-0"
+                                            title="サブタスクをコピー"
+                                          >
+                                            コピー
+                                          </button>
                                           <button
                                             onClick={() => deleteSubtask(task.id, sub.id)}
                                             className="text-xs text-gray-300 hover:text-red-400 transition-colors shrink-0"
