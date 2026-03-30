@@ -1697,10 +1697,29 @@ function HomeContent() {
                                 const notStarted = subs.filter(s => s.status !== '進行中');
                                 return (
                                   <div key={tid} className="border border-gray-100 rounded-lg overflow-hidden">
-                                    <div className="bg-gray-50 px-3 py-2 flex items-center gap-2">
+                                    <div
+                                      className="bg-gray-50 px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-blue-50 transition-colors"
+                                      onClick={() => {
+                                        setView("list");
+                                        setTimeout(() => {
+                                          const el = document.getElementById(`task-${task.id}`);
+                                          if (el) {
+                                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            el.classList.add('ring-2', 'ring-blue-400');
+                                            setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                                          }
+                                          toggleSubtasks(task.id);
+                                        }, 100);
+                                      }}
+                                      title="クリックでタスクに移動"
+                                    >
                                       <Folder size={12} className="text-gray-400 shrink-0" />
                                       <span className="text-xs font-bold text-gray-600 truncate">{task.title}</span>
-                                      {task.project_name && <span className="text-[10px] text-gray-400 shrink-0">({task.project_name})</span>}
+                                      {(task.project_name || task.client_id) && (
+                                        <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                                          {task.project_name || clients.find(c => c.id === task.client_id)?.name || ''}
+                                        </span>
+                                      )}
                                       {task.due_date && <span className="text-[10px] text-gray-400 shrink-0 ml-auto">締切 {task.due_date}</span>}
                                     </div>
                                     <div className="px-3 py-2 space-y-1">
