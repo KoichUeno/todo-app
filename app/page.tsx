@@ -1728,7 +1728,10 @@ function HomeContent() {
                                             className="w-4 h-4 mt-0.5 rounded-full border-2 bg-blue-400 border-blue-400 text-white flex items-center justify-center text-[8px] shrink-0"
                                           >▶</button>
                                           <div className="flex-1 min-w-0">
-                                            <span className="text-sm text-blue-700 font-semibold truncate block">{subtask.title}</span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="text-sm text-blue-700 font-semibold truncate">{subtask.title}</span>
+                                              <span className="text-[9px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded shrink-0">{task.project_name || clients.find(c => c.id === task.client_id)?.name || '—'}</span>
+                                            </div>
                                             {subtask.description && <p className="text-xs text-gray-500 mt-0.5">{subtask.description}</p>}
                                             {subtask.important_note && <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-0.5"><AlertTriangle size={10} /> {subtask.important_note}</p>}
                                             {subtask.due_date && <span className="text-[10px] text-gray-400">締切 {subtask.due_date}</span>}
@@ -1746,7 +1749,10 @@ function HomeContent() {
                                             className="w-4 h-4 mt-0.5 rounded-full border-2 border-gray-300 hover:border-blue-400 shrink-0"
                                           />
                                           <div className="flex-1 min-w-0">
-                                            <span className="text-sm text-gray-700 truncate block">{subtask.title}</span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="text-sm text-gray-700 truncate">{subtask.title}</span>
+                                              <span className="text-[9px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded shrink-0">{task.project_name || clients.find(c => c.id === task.client_id)?.name || '—'}</span>
+                                            </div>
                                             {subtask.description && <p className="text-xs text-gray-500 mt-0.5">{subtask.description}</p>}
                                             {subtask.important_note && <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-0.5"><AlertTriangle size={10} /> {subtask.important_note}</p>}
                                             {subtask.due_date && <span className="text-[10px] text-gray-400">締切 {subtask.due_date}</span>}
