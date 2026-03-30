@@ -14,6 +14,7 @@ type Client = {
   note: string;
   client_code: string;
   branch_number: string;
+  notification_info: string;
 };
 
 type Task = {
@@ -27,7 +28,7 @@ type Task = {
   project_name: string;
 };
 
-const CLIENT_TYPES = ["企業", "資産家", "一般社団法人", "個人事業", "その他", "自社"];
+const CLIENT_TYPES = ["企業", "資産家", "一般社団法人", "個人事業", "その他", "自社", "クライアント共通"];
 
 export default function ClientsPage() {
   const router = useRouter();
@@ -51,6 +52,7 @@ export default function ClientsPage() {
   const [newNote, setNewNote] = useState("");
   const [newClientCode, setNewClientCode] = useState("");
   const [newBranchNumber, setNewBranchNumber] = useState("");
+  const [newNotificationInfo, setNewNotificationInfo] = useState("");
 
   // 編集フォーム
   const [editName, setEditName] = useState("");
@@ -61,6 +63,10 @@ export default function ClientsPage() {
   const [editNote, setEditNote] = useState("");
   const [editClientCode, setEditClientCode] = useState("");
   const [editBranchNumber, setEditBranchNumber] = useState("");
+  const [editNotificationInfo, setEditNotificationInfo] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // クライアント別タスク
   const [clientTasks, setClientTasks] = useState<Record<string, Task[]>>({});
@@ -97,16 +103,28 @@ export default function ClientsPage() {
 
   const addClient = async () => {
     if (!newName.trim()) return;
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, client_type: newType, head_office: newHeadOffice, representative: newRepresentative, fiscal_month: newFiscalMonth, note: newNote, client_code: newClientCode, branch_number: newBranchNumber }),
-    });
-    if (res.ok) {
-      const c = await res.json();
-      setClients((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name, "ja")));
-      setNewName(""); setNewType(""); setNewHeadOffice(""); setNewRepresentative(""); setNewFiscalMonth(""); setNewNote(""); setNewClientCode(""); setNewBranchNumber("");
-      setShowAdd(false);
+    if (saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName, client_type: newType || undefined, head_office: newHeadOffice || undefined, representative: newRepresentative || undefined, fiscal_month: newFiscalMonth || undefined, note: newNote || undefined, client_code: newClientCode || undefined, branch_number: newBranchNumber || undefined, notification_info: newNotificationInfo || undefined }),
+      });
+      if (res.ok) {
+        const c = await res.json();
+        setClients((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name, "ja")));
+        setNewName(""); setNewType(""); setNewHeadOffice(""); setNewRepresentative(""); setNewFiscalMonth(""); setNewNote(""); setNewClientCode(""); setNewBranchNumber(""); setNewNotificationInfo("");
+        setShowAdd(false);
+      } else {
+        const err = await res.json();
+        setSaveError(err.error || "登録に失敗しました");
+      }
+    } catch {
+      setSaveError("通信エラーが発生しました");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -115,7 +133,7 @@ export default function ClientsPage() {
     const res = await fetch("/api/clients", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingClient.id, name: editName, client_type: editType, head_office: editHeadOffice, representative: editRepresentative, fiscal_month: editFiscalMonth, note: editNote, client_code: editClientCode, branch_number: editBranchNumber }),
+      body: JSON.stringify({ id: editingClient.id, name: editName, client_type: editType, head_office: editHeadOffice, representative: editRepresentative, fiscal_month: editFiscalMonth, note: editNote, client_code: editClientCode, branch_number: editBranchNumber, notification_info: editNotificationInfo }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -133,7 +151,7 @@ export default function ClientsPage() {
   const startEdit = (c: Client) => {
     setEditingClient(c);
     setEditName(c.name); setEditType(c.client_type || ""); setEditHeadOffice(c.head_office || "");
-    setEditRepresentative(c.representative || ""); setEditFiscalMonth(c.fiscal_month || ""); setEditNote(c.note || ""); setEditClientCode(c.client_code || ""); setEditBranchNumber(c.branch_number || "");
+    setEditRepresentative(c.representative || ""); setEditFiscalMonth(c.fiscal_month || ""); setEditNote(c.note || ""); setEditClientCode(c.client_code || ""); setEditBranchNumber(c.branch_number || ""); setEditNotificationInfo(c.notification_info || "");
     setExpandedId(c.id);
   };
 
@@ -143,6 +161,7 @@ export default function ClientsPage() {
     if (t === "一般社団法人") return <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">社 一般社団法人</span>;
     if (t === "個人事業") return <span className="text-[10px] bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full">個人事業</span>;
     if (t === "自社") return <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">自社</span>;
+    if (t === "クライアント共通") return <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">共通</span>;
     return t ? <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{t}</span> : null;
   };
 
@@ -190,9 +209,11 @@ export default function ClientsPage() {
               <input value={newFiscalMonth} onChange={(e) => setNewFiscalMonth(e.target.value)} placeholder="決算月（例：3月）" className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="備考" rows={2} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            <textarea value={newNotificationInfo} onChange={(e) => setNewNotificationInfo(e.target.value)} placeholder="届出関係（届出先・届出内容など）" rows={2} className="border border-orange-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50" />
+            {saveError && <p className="text-xs text-red-500 font-semibold">{saveError}</p>}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowAdd(false)} className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1">キャンセル</button>
-              <button onClick={addClient} className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors">登録</button>
+              <button onClick={() => { setShowAdd(false); setSaveError(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1">キャンセル</button>
+              <button onClick={addClient} disabled={saving} className="text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors">{saving ? "登録中..." : "登録"}</button>
             </div>
           </div>
         )}
@@ -241,6 +262,7 @@ export default function ClientsPage() {
                         <input value={editFiscalMonth} onChange={(e) => setEditFiscalMonth(e.target.value)} placeholder="決算月（例：3月）" className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                       </div>
                       <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="備考" rows={2} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                      <textarea value={editNotificationInfo} onChange={(e) => setEditNotificationInfo(e.target.value)} placeholder="届出関係（届出先・届出内容など）" rows={2} className="border border-orange-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50" />
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => setEditingClient(null)} className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1">キャンセル</button>
                         <button onClick={saveEdit} className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors">保存</button>
@@ -254,7 +276,8 @@ export default function ClientsPage() {
                       {c.representative && <div><span className="text-gray-400">代表者：</span>{c.representative}</div>}
                       {c.fiscal_month && <div><span className="text-gray-400">決算月：</span>{c.fiscal_month}</div>}
                       {c.note && <div className="col-span-2"><span className="text-gray-400">備考：</span>{c.note}</div>}
-                      {!c.head_office && !c.representative && !c.fiscal_month && !c.note && (
+                      {c.notification_info && <div className="col-span-2 bg-orange-50 border border-orange-100 rounded px-2 py-1"><span className="text-orange-500 font-semibold">届出関係：</span><span className="whitespace-pre-wrap">{c.notification_info}</span></div>}
+                      {!c.head_office && !c.representative && !c.fiscal_month && !c.note && !c.notification_info && (
                         <p className="col-span-2 text-gray-300">詳細情報なし</p>
                       )}
                     </div>

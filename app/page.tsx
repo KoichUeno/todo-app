@@ -46,6 +46,14 @@ type Profile = {
   role: string;
 };
 
+type SubtaskMemo = {
+  id: string;
+  subtask_id: string;
+  content: string;
+  user_name: string;
+  created_at: string;
+};
+
 type TemplateSubtask = {
   id: string;
   template_id: string;
@@ -148,6 +156,10 @@ function HomeContent() {
   const [editingSubtaskDueDate, setEditingSubtaskDueDate] = useState("");
   const [editingSubtaskStartDate, setEditingSubtaskStartDate] = useState("");
   const [editingSubtaskStatus, setEditingSubtaskStatus] = useState<'未着手' | '進行中' | '完了'>('未着手');
+
+  const [subtaskMemos, setSubtaskMemos] = useState<SubtaskMemo[]>([]);
+  const [newMemoContent, setNewMemoContent] = useState("");
+  const [loadingMemos, setLoadingMemos] = useState(false);
 
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
   const [newSubtaskDescriptions, setNewSubtaskDescriptions] = useState<Record<string, string>>({});
@@ -625,6 +637,56 @@ function HomeContent() {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
+  // サブタスク編集パネルを開く
+  const openSubtaskEditPanel = (taskId: string, subtask: Subtask) => {
+    setEditingSubtaskParentTaskId(taskId);
+    setEditingSubtaskId(subtask.id);
+    setEditingSubtaskTitle(subtask.title);
+    setEditingSubtaskDescription(subtask.description ?? "");
+    setEditingSubtaskImportantNote(subtask.important_note ?? "");
+    setEditingSubtaskAssignee(subtask.assignee ?? "");
+    setEditingSubtaskDueDate(subtask.due_date ?? "");
+    setEditingSubtaskStartDate(subtask.start_date ?? "");
+    setEditingSubtaskStatus(subtask.status || '未着手');
+    setNewMemoContent("");
+    fetchMemos(subtask.id);
+  };
+
+  // サブタスクのメモを取得
+  const fetchMemos = async (subtaskId: string) => {
+    setLoadingMemos(true);
+    const res = await fetch(`/api/subtask-memos?subtask_id=${subtaskId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setSubtaskMemos(data);
+    }
+    setLoadingMemos(false);
+  };
+
+  // メモを追加
+  const addMemo = async (subtaskId: string) => {
+    const content = newMemoContent.trim();
+    if (!content) return;
+    const res = await fetch('/api/subtask-memos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subtask_id: subtaskId, content, user_name: currentUser?.name || '' }),
+    });
+    if (res.ok) {
+      const memo = await res.json();
+      setSubtaskMemos([memo, ...subtaskMemos]);
+      setNewMemoContent("");
+    }
+  };
+
+  // メモを削除
+  const deleteMemo = async (memoId: string) => {
+    const res = await fetch(`/api/subtask-memos?id=${memoId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setSubtaskMemos(subtaskMemos.filter(m => m.id !== memoId));
+    }
+  };
+
   // サブタスクを追加する
   const addSubtask = async (taskId: string) => {
     const title = newSubtaskTitles[taskId]?.trim();
@@ -834,7 +896,7 @@ function HomeContent() {
       {editingSubtaskId && (
         <div className="fixed left-0 top-0 h-full w-72 bg-white border-r-2 border-blue-200 shadow-xl z-50 overflow-y-auto p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-700">サブタスク編集</h3>
+            <h3 className="text-sm font-bold text-gray-700">{editingSubtaskId === 'new' ? 'サブタスク追加' : 'サブタスク編集'}</h3>
             <button onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
           </div>
           <div className="flex flex-col gap-2">
@@ -903,12 +965,98 @@ function HomeContent() {
               className="border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
           </div>
+          {/* メモセクション（編集モードのみ） */}
+          {editingSubtaskId && editingSubtaskId !== 'new' && (
+            <div className="border-t border-gray-200 pt-3 mt-1">
+              <label className="text-[10px] text-gray-400 font-semibold">メモ・進捗記録</label>
+              <div className="flex gap-1 mt-1">
+                <input
+                  type="text"
+                  value={newMemoContent}
+                  onChange={(e) => setNewMemoContent(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addMemo(editingSubtaskId)}
+                  placeholder="メモを入力..."
+                  className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button
+                  onClick={() => addMemo(editingSubtaskId)}
+                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded font-semibold shrink-0"
+                >追加</button>
+              </div>
+              <div className="mt-2 flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+                {loadingMemos ? (
+                  <p className="text-[10px] text-gray-400">読み込み中...</p>
+                ) : subtaskMemos.length === 0 ? (
+                  <p className="text-[10px] text-gray-400">メモはまだありません</p>
+                ) : subtaskMemos.map(memo => (
+                  <div key={memo.id} className="bg-gray-50 rounded px-2 py-1.5 text-xs group">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] text-gray-400">
+                        {memo.user_name && <span className="font-semibold text-gray-500">{memo.user_name}</span>}
+                        {' '}{new Date(memo.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <button
+                        onClick={() => deleteMemo(memo.id)}
+                        className="text-[10px] text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >×</button>
+                    </div>
+                    <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{memo.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 mt-2">
             <button
-              onClick={() => { if (editingSubtaskParentTaskId && editingSubtaskId) saveSubtaskEdit(editingSubtaskParentTaskId, editingSubtaskId); setEditingSubtaskParentTaskId(null); }}
+              onClick={async () => {
+                if (!editingSubtaskParentTaskId) return;
+                if (editingSubtaskId === 'new') {
+                  // 新規追加
+                  const title = editingSubtaskTitle.trim();
+                  if (!title) return;
+                  const task = tasks.find(t => t.id === editingSubtaskParentTaskId);
+                  if (!task) return;
+                  const isInsert = insertSubtaskAfter?.taskId === editingSubtaskParentTaskId;
+                  const order_num = isInsert ? insertSubtaskAfter!.afterIndex + 2 : (task.subtasks.length ?? 0) + 1;
+                  const res = await fetch('/api/subtasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      task_id: editingSubtaskParentTaskId, title,
+                      assignee: editingSubtaskAssignee || "",
+                      order_num,
+                      description: editingSubtaskDescription.trim() || null,
+                      important_note: editingSubtaskImportantNote.trim() || null,
+                      due_date: editingSubtaskDueDate || null,
+                      start_date: editingSubtaskStartDate || null,
+                      status: editingSubtaskStatus,
+                    }),
+                  });
+                  const newSub = await res.json();
+                  if (isInsert) {
+                    const subs = [...task.subtasks];
+                    subs.splice(insertSubtaskAfter!.afterIndex + 1, 0, newSub);
+                    setTasks(tasks.map(t => t.id === editingSubtaskParentTaskId ? { ...t, subtasks: subs, showSubtasks: true } : t));
+                    setInsertSubtaskAfter(null);
+                  } else {
+                    setTasks(tasks.map(t => t.id === editingSubtaskParentTaskId ? { ...t, subtasks: [...t.subtasks, newSub], showSubtasks: true } : t));
+                  }
+                  // パネルをリセットして続けて追加できるようにする
+                  setEditingSubtaskTitle("");
+                  setEditingSubtaskDescription("");
+                  setEditingSubtaskImportantNote("");
+                  setEditingSubtaskAssignee("");
+                  setEditingSubtaskDueDate("");
+                  setEditingSubtaskStartDate("");
+                  setEditingSubtaskStatus('未着手');
+                } else {
+                  saveSubtaskEdit(editingSubtaskParentTaskId, editingSubtaskId!);
+                  setEditingSubtaskParentTaskId(null);
+                }
+              }}
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 rounded-lg transition-colors"
             >
-              保存
+              {editingSubtaskId === 'new' ? '追加' : '保存'}
             </button>
             <button
               onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); }}
@@ -1036,6 +1184,7 @@ function HomeContent() {
                   <option value="個人事業">個人事業</option>
                   <option value="その他">その他</option>
                   <option value="自社">自社</option>
+                  <option value="クライアント共通">クライアント共通</option>
                 </select>
                 <select
                   value={newTaskType}
@@ -1243,7 +1392,7 @@ function HomeContent() {
               <div className="flex gap-1.5 items-center whitespace-nowrap">
               <span className="text-[10px] text-gray-400 self-center shrink-0">顧客区分:</span>
               <button onClick={() => setFilterClientType("")} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${!filterClientType ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>すべて</button>
-              {["企業", "資産家"].map((ct) => (
+              {["企業", "資産家", "クライアント共通"].map((ct) => (
                 <button key={ct} onClick={() => setFilterClientType(filterClientType === ct ? "" : ct)} className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${filterClientType === ct ? "bg-blue-500 text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>{ct}</button>
               ))}
               </div>
@@ -1414,7 +1563,7 @@ function HomeContent() {
                                             {subtask.due_date && <span className="text-[10px] text-gray-400">締切 {subtask.due_date}</span>}
                                           </div>
                                           <button
-                                            onClick={() => { setEditingSubtaskParentTaskId(task.id); setEditingSubtaskId(subtask.id); setEditingSubtaskTitle(subtask.title); setEditingSubtaskDescription(subtask.description ?? ""); setEditingSubtaskImportantNote(subtask.important_note ?? ""); setEditingSubtaskAssignee(subtask.assignee ?? ""); setEditingSubtaskDueDate(subtask.due_date ?? ""); setEditingSubtaskStartDate(subtask.start_date ?? ""); setEditingSubtaskStatus(subtask.status || '進行中'); }}
+                                            onClick={() => openSubtaskEditPanel(task.id, subtask)}
                                             className="text-xs text-blue-400 hover:text-blue-600 shrink-0"
                                           >編集</button>
                                         </div>
@@ -1432,7 +1581,7 @@ function HomeContent() {
                                             {subtask.due_date && <span className="text-[10px] text-gray-400">締切 {subtask.due_date}</span>}
                                           </div>
                                           <button
-                                            onClick={() => { setEditingSubtaskParentTaskId(task.id); setEditingSubtaskId(subtask.id); setEditingSubtaskTitle(subtask.title); setEditingSubtaskDescription(subtask.description ?? ""); setEditingSubtaskImportantNote(subtask.important_note ?? ""); setEditingSubtaskAssignee(subtask.assignee ?? ""); setEditingSubtaskDueDate(subtask.due_date ?? ""); setEditingSubtaskStartDate(subtask.start_date ?? ""); setEditingSubtaskStatus(subtask.status || '未着手'); }}
+                                            onClick={() => openSubtaskEditPanel(task.id, subtask)}
                                             className="text-xs text-gray-400 hover:text-blue-400 shrink-0"
                                           >編集</button>
                                         </div>
@@ -1529,7 +1678,7 @@ function HomeContent() {
                       {/* 展開エリア：編集フォーム＋サブタスク＋アクション */}
                       {isExpanded && (
                         <tr><td colSpan={8} className="p-0 sticky left-0" style={{ maxWidth: '100vw' }}>
-                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3">
                             {/* 編集フォーム */}
                             {editingTaskId === task.id ? (
                               <div className="flex flex-col gap-2 mb-3 bg-white rounded-xl p-3 border border-blue-100">
@@ -1548,8 +1697,8 @@ function HomeContent() {
                                   rows={1}
                                   className="w-full border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
-                                <div className="overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                <div className="flex gap-2 items-center whitespace-nowrap">
+                                <div className="pb-1">
+                                <div className="flex gap-2 items-center flex-wrap">
                                   <ClientComboBox
                                     clients={clients}
                                     value={editingTaskClientId}
@@ -1757,7 +1906,7 @@ function HomeContent() {
                                             <span className="text-[10px] text-blue-500 font-semibold shrink-0">編集中</span>
                                           ) : (
                                             <button
-                                              onClick={() => { setEditingSubtaskParentTaskId(task.id); setEditingSubtaskId(sub.id); setEditingSubtaskTitle(sub.title); setEditingSubtaskDescription(sub.description ?? ""); setEditingSubtaskImportantNote(sub.important_note ?? ""); setEditingSubtaskAssignee(sub.assignee ?? ""); setEditingSubtaskDueDate(sub.due_date ?? ""); setEditingSubtaskStartDate(sub.start_date ?? ""); setEditingSubtaskStatus(sub.status || (sub.is_completed ? '完了' : '未着手')); }}
+                                              onClick={() => openSubtaskEditPanel(task.id, sub)}
                                               className="text-xs text-gray-400 hover:text-blue-400 transition-colors shrink-0"
                                             >
                                               編集
@@ -1773,111 +1922,47 @@ function HomeContent() {
                                       )}
                                     </Draggable>
                                     {/* 途中挿入ボタン */}
-                                    {insertSubtaskAfter?.taskId === task.id && insertSubtaskAfter.afterIndex === index ? (
-                                      <div className="my-1 bg-blue-50 border border-blue-200 rounded-lg p-2">
-                                        <div className="flex flex-col gap-1">
-                                          <input
-                                            type="text"
-                                            placeholder="サブタスク名 *"
-                                            value={newSubtaskTitles[task.id] ?? ""}
-                                            onChange={(e) => setNewSubtaskTitles({ ...newSubtaskTitles, [task.id]: e.target.value })}
-                                            onKeyDown={(e) => e.key === "Enter" && insertSubtask(task.id, index)}
-                                            className="border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                            autoFocus
-                                          />
-                                          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:flex-wrap sm:items-center">
-                                            <select
-                                              value={newSubtaskAssignees[task.id] ?? ""}
-                                              onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
-                                              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white col-span-2 sm:w-32"
-                                            >
-                                              <option value="">責任者</option>
-                                              {profiles.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
-                                            </select>
-                                            <input type="date" value={newSubtaskStartDates[task.id] ?? ""} onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })} className="border border-gray-200 rounded px-1.5 py-1 text-xs" title="開始日" />
-                                            <input type="date" value={newSubtaskDueDates[task.id] ?? ""} onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })} className="border border-gray-200 rounded px-1.5 py-1 text-xs" title="締切日" />
-                                            <button onClick={() => insertSubtask(task.id, index)} className="text-xs bg-blue-500 text-white px-3 py-1 rounded font-semibold">追加</button>
-                                            <button onClick={() => setInsertSubtaskAfter(null)} className="text-xs text-gray-400 hover:text-gray-600">キャンセル</button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="flex justify-center my-0.5 opacity-0 hover:opacity-100 transition-opacity">
-                                        <button
-                                          onClick={() => setInsertSubtaskAfter({ taskId: task.id, afterIndex: index })}
-                                          className="text-[10px] text-blue-400 hover:text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
-                                        >
-                                          ＋ ここに追加
-                                        </button>
-                                      </div>
-                                    )}
+                                    <div className="flex justify-center my-0.5 opacity-0 hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => {
+                                          setInsertSubtaskAfter({ taskId: task.id, afterIndex: index });
+                                          setEditingSubtaskId('new');
+                                          setEditingSubtaskParentTaskId(task.id);
+                                          setEditingSubtaskTitle("");
+                                          setEditingSubtaskDescription("");
+                                          setEditingSubtaskImportantNote("");
+                                          setEditingSubtaskAssignee("");
+                                          setEditingSubtaskDueDate("");
+                                          setEditingSubtaskStartDate("");
+                                          setEditingSubtaskStatus('未着手');
+                                        }}
+                                        className="text-[10px] text-blue-400 hover:text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                                      >
+                                        ＋ ここに追加
+                                      </button>
+                                    </div>
                                     </React.Fragment>
                                   ))}{provided.placeholder}
                                 </div>
                               )}
                             </Droppable>
                           </DragDropContext>
-                          <div className="mt-3 bg-white border border-gray-200 rounded-xl p-3">
-                            <p className="text-xs font-semibold text-gray-500 mb-2">サブタスクを追加</p>
-                            <div className="flex flex-col gap-1.5">
-                              <input
-                                type="text"
-                                placeholder="サブタスク名 *"
-                                value={newSubtaskTitles[task.id] ?? ""}
-                                onChange={(e) => setNewSubtaskTitles({ ...newSubtaskTitles, [task.id]: e.target.value })}
-                                onKeyDown={(e) => e.key === "Enter" && addSubtask(task.id)}
-                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                              />
-                              <textarea
-                                placeholder="概要（任意）"
-                                value={newSubtaskDescriptions[task.id] ?? ""}
-                                onChange={(e) => setNewSubtaskDescriptions({ ...newSubtaskDescriptions, [task.id]: e.target.value })}
-                                rows={1}
-                                className="border border-gray-200 rounded-lg px-3 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                              />
-                              <input
-                                type="text"
-                                placeholder="重要事項（任意）"
-                                value={newSubtaskNotes[task.id] ?? ""}
-                                onChange={(e) => setNewSubtaskNotes({ ...newSubtaskNotes, [task.id]: e.target.value })}
-                                className="border border-orange-200 rounded-lg px-3 py-1 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
-                              />
-                              <div className="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:flex-wrap sm:items-center">
-                                <select
-                                  value={newSubtaskAssignees[task.id] ?? ""}
-                                  onChange={(e) => setNewSubtaskAssignees({ ...newSubtaskAssignees, [task.id]: e.target.value })}
-                                  className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white col-span-2 sm:w-32"
-                                >
-                                  <option value="">責任者</option>
-                                  {profiles.map((p) => (
-                                    <option key={p.id} value={p.name}>{p.name}</option>
-                                  ))}
-                                </select>
-                                <input
-                                  type="date"
-                                  value={newSubtaskStartDates[task.id] ?? ""}
-                                  onChange={(e) => setNewSubtaskStartDates({ ...newSubtaskStartDates, [task.id]: e.target.value })}
-                                  className="border border-gray-200 rounded-lg px-1.5 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                  title="開始日"
-                                  placeholder="開始日"
-                                />
-                                <input
-                                  type="date"
-                                  value={newSubtaskDueDates[task.id] ?? ""}
-                                  onChange={(e) => setNewSubtaskDueDates({ ...newSubtaskDueDates, [task.id]: e.target.value })}
-                                  className="border border-gray-200 rounded-lg px-1.5 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                  title="締切日"
-                                  placeholder="締切日"
-                                />
-                                <button
-                                  onClick={() => addSubtask(task.id)}
-                                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors col-span-2 sm:col-span-1"
-                                >
-                                  追加
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                          <button
+                            onClick={() => {
+                              setEditingSubtaskId('new');
+                              setEditingSubtaskParentTaskId(task.id);
+                              setEditingSubtaskTitle("");
+                              setEditingSubtaskDescription("");
+                              setEditingSubtaskImportantNote("");
+                              setEditingSubtaskAssignee("");
+                              setEditingSubtaskDueDate("");
+                              setEditingSubtaskStartDate("");
+                              setEditingSubtaskStatus('未着手');
+                            }}
+                            className="mt-3 w-full text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 font-semibold py-2 rounded-lg border border-dashed border-blue-300 transition-colors"
+                          >
+                            ＋ サブタスクを追加
+                          </button>
                           </div>
                           </div>
                         </td>
@@ -2319,6 +2404,7 @@ function ClientComboBox({
     if (t === "企業") return <span className="text-[9px] bg-blue-100 text-blue-600 px-1 py-0.5 rounded-full">企業</span>;
     if (t === "資産家") return <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded-full">資産家</span>;
     if (t === "一般社団法人") return <span className="text-[9px] bg-green-100 text-green-600 px-1 py-0.5 rounded-full">社団</span>;
+    if (t === "クライアント共通") return <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1 py-0.5 rounded-full">共通</span>;
     if (t) return <span className="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded-full">{t}</span>;
     return null;
   };
