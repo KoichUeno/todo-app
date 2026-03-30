@@ -1207,11 +1207,11 @@ function HomeContent() {
                 className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
               />
               <textarea
-                placeholder="概要（任意）"
+                placeholder="概要（任意）- マニュアルや手順メモなど自由に記載できます"
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
-                rows={2}
-                className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                rows={4}
+                className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y"
               />
               <div className="flex gap-3 mb-2">
                 <input
@@ -1774,9 +1774,9 @@ function HomeContent() {
                                 <textarea
                                   value={editingTaskDescription}
                                   onChange={(e) => setEditingTaskDescription(e.target.value)}
-                                  placeholder="概要（任意）"
-                                  rows={1}
-                                  className="w-full border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                                  placeholder="概要（任意）- マニュアルや手順メモなど自由に記載できます"
+                                  rows={4}
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y"
                                 />
                                 <input
                                   type="text"
