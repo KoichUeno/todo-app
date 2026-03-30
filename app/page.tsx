@@ -1715,11 +1715,9 @@ function HomeContent() {
                                     >
                                       <Folder size={12} className="text-gray-400 shrink-0" />
                                       <span className="text-xs font-bold text-gray-600 truncate">{task.title}</span>
-                                      {(task.project_name || task.client_id) && (
-                                        <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
-                                          {task.project_name || clients.find(c => c.id === task.client_id)?.name || ''}
-                                        </span>
-                                      )}
+                                      <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded shrink-0 font-semibold">
+                                        {task.project_name || clients.find(c => c.id === task.client_id)?.name || '—'}
+                                      </span>
                                       {task.due_date && <span className="text-[10px] text-gray-400 shrink-0 ml-auto">締切 {task.due_date}</span>}
                                     </div>
                                     <div className="px-3 py-2 space-y-1">
