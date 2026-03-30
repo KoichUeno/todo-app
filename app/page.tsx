@@ -146,6 +146,7 @@ function HomeContent() {
   const [editingTaskTaskType, setEditingTaskTaskType] = useState("");
   const [editingTaskAssignee, setEditingTaskAssignee] = useState("");
   const [editingTaskClientId, setEditingTaskClientId] = useState("");
+  const [editingTaskImportantNote, setEditingTaskImportantNote] = useState("");
 
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskParentTaskId, setEditingSubtaskParentTaskId] = useState<string | null>(null);
@@ -270,6 +271,7 @@ function HomeContent() {
         setEditingTaskTaskType(task.task_type ?? "");
         setEditingTaskAssignee(task.assignee ?? "");
         setEditingTaskClientId(task.client_id ?? "");
+        setEditingTaskImportantNote(task.important_note ?? "");
         const cat = task.category ?? "";
         const isOther = cat.startsWith("その他：");
         setEditingTaskCategory(isOther ? "その他" : cat);
@@ -550,6 +552,7 @@ function HomeContent() {
           assignee: editingTaskAssignee || null,
           category: resolveCategory(editingTaskCategory, editingTaskCategoryOther) || null,
           client_id: editingTaskClientId || null,
+          important_note: editingTaskImportantNote || null,
         }),
       });
       if (!res.ok) {
@@ -558,7 +561,7 @@ function HomeContent() {
         return;
       }
       setTasks(tasks.map((t) =>
-        t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, start_date: editingTaskStartDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId } : t
+        t.id === id ? { ...t, title: editingTaskTitle, description: editingTaskDescription, due_date: editingTaskDueDate, start_date: editingTaskStartDate, data_location: editingTaskDataLocation, project_name: editingTaskProjectName, importance: editingTaskImportance, client_type: editingTaskClientType, task_type: editingTaskTaskType, assignee: editingTaskAssignee, category: resolveCategory(editingTaskCategory, editingTaskCategoryOther), client_id: editingTaskClientId, important_note: editingTaskImportantNote } : t
       ));
       setEditingTaskId(null);
     } catch (e) {
@@ -1775,6 +1778,13 @@ function HomeContent() {
                                   rows={1}
                                   className="w-full border border-gray-200 rounded-lg px-3 py-1 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                                 />
+                                <input
+                                  type="text"
+                                  value={editingTaskImportantNote}
+                                  onChange={(e) => setEditingTaskImportantNote(e.target.value)}
+                                  placeholder="重要事項（任意）"
+                                  className="w-full border border-orange-200 rounded-lg px-3 py-1.5 text-sm text-orange-700 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder-orange-300"
+                                />
                                 <div className="pb-1">
                                 <div className="flex gap-2 items-center flex-wrap">
                                   <ClientComboBox
@@ -1898,7 +1908,7 @@ function HomeContent() {
                               <div className="flex flex-wrap gap-2 mb-3">
                                 <button
                                   onClick={() => {
-  setEditingTaskId(task.id); setEditingTaskTitle(task.title); setEditingTaskDescription(task.description ?? ""); setEditingTaskDueDate(task.due_date ?? ""); setEditingTaskStartDate(task.start_date ?? ""); setEditingTaskDataLocation(task.data_location ?? ""); setEditingTaskProjectName(task.project_name ?? ""); setEditingTaskImportance(task.importance || "通常"); setEditingTaskClientType(task.client_type ?? ""); setEditingTaskTaskType(task.task_type ?? ""); setEditingTaskAssignee(task.assignee ?? ""); setEditingTaskClientId(task.client_id ?? "");
+  setEditingTaskId(task.id); setEditingTaskTitle(task.title); setEditingTaskDescription(task.description ?? ""); setEditingTaskDueDate(task.due_date ?? ""); setEditingTaskStartDate(task.start_date ?? ""); setEditingTaskDataLocation(task.data_location ?? ""); setEditingTaskProjectName(task.project_name ?? ""); setEditingTaskImportance(task.importance || "通常"); setEditingTaskClientType(task.client_type ?? ""); setEditingTaskTaskType(task.task_type ?? ""); setEditingTaskAssignee(task.assignee ?? ""); setEditingTaskClientId(task.client_id ?? ""); setEditingTaskImportantNote(task.important_note ?? "");
   const cat = task.category ?? ""; const isOther = cat.startsWith("その他："); setEditingTaskCategory(isOther ? "その他" : cat); setEditingTaskCategoryOther(isOther ? cat.replace("その他：", "") : "");
 }}
                                   className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2.5 py-1 rounded-lg transition-colors font-semibold"
