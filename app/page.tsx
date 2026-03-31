@@ -1855,8 +1855,8 @@ function HomeContent() {
                       </tr>
                       {/* 展開エリア：編集フォーム＋サブタスク＋アクション */}
                       {isExpanded && (
-                        <tr><td colSpan={8} className="p-0 sticky left-0" style={{ maxWidth: '100vw', width: '100vw' }}>
-                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 overflow-hidden">
+                        <tr><td colSpan={8} className="p-0">
+                          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 overflow-hidden" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
                             {/* 編集フォーム */}
                             {editingTaskId === task.id ? (
                               <div className="flex flex-col gap-2 mb-3 bg-white rounded-xl p-3 border border-blue-100">
