@@ -1006,6 +1006,7 @@ function HomeContent() {
   const allFilters = (t: Task) => categoryFilter(t) && clientTypeFilter(t) && monthFilter(t) && clientNameFilter(t) && statusFilter(t);
 
   const activeTasks = tasks.filter((t) => (t.status === '進行中' || (!t.status && !t.is_completed)) && allFilters(t));
+  const allActiveTasks = tasks.filter((t) => t.status === '進行中' || (!t.status && !t.is_completed)); // フィルタなし（サイドバー用）
   const completedTasks = tasks.filter((t) => (t.status === '完了（未請求）' || (t.is_completed && !t.status)) && allFilters(t));
   const invoicedTasks = tasks.filter((t) => t.status === '請求済' && allFilters(t));
   const collectedTasks = tasks.filter((t) => t.status === '回収済' && allFilters(t));
@@ -2251,7 +2252,7 @@ function HomeContent() {
 
           {/* 右カラム：担当者ごと未完了一覧 */}
           <div className="w-56 shrink-0 hidden lg:block">
-            <SidebarByAssignee activeTasks={activeTasks} />
+            <SidebarByAssignee activeTasks={allActiveTasks} />
           </div>
 
         </div>
