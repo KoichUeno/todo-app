@@ -29,6 +29,30 @@ type AnthropicMessageResponse = {
 
 export async function POST(request: NextRequest) {
   try {
+    // --- 認証: 上野のみ許可 ---
+    const authHeader = request.headers.get('authorization') || ''
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+    if (!token) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+    }
+    const anon = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data: userData, error: userErr } = await anon.auth.getUser(token)
+    if (userErr || !userData.user) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+    }
+    const supabase = getSupabase()
+    const { data: me } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', userData.user.id)
+      .maybeSingle()
+    if (!me || !(me.name || '').includes('上野')) {
+      return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await request.json()
     const text: unknown = body?.text
     if (typeof text !== 'string' || text.trim().length === 0) {
@@ -43,7 +67,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 顧客と担当者リストを取得
-    const supabase = getSupabase()
     const [clientsRes, profilesRes] = await Promise.all([
       supabase.from('clients').select('name').order('name'),
       supabase.from('profiles').select('name').order('name'),
@@ -112,7 +135,7 @@ ${assigneeNames.join('、')}
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1024,
         system: [
           {
@@ -128,7 +151,11 @@ ${assigneeNames.join('、')}
     if (!anthropicRes.ok) {
       const errText = await anthropicRes.text()
       return NextResponse.json(
-        { ok: false, error: `Anthropic API error: ${anthropicRes.status}`, detail: errText },
+        {
+          ok: false,
+          error: `Anthropic API error ${anthropicRes.status}: ${errText}`,
+          detail: errText,
+        },
         { status: 500 }
       )
     }

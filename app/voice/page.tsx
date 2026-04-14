@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Check, Loader2, Mic, Square, X } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 type Analysis = {
   title: string
@@ -62,10 +63,40 @@ export default function VoicePage() {
   const [error, setError] = useState<string | null>(null)
   const [supported, setSupported] = useState(true)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     if (!getSpeechRecognition()) setSupported(false)
   }, [])
+
+  // 上野のみアクセス可 — プロフィール名に「上野」を含まないユーザーは / に戻す
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) {
+        router.replace('/auth')
+        return
+      }
+      const res = await fetch('/api/profiles')
+      if (!res.ok) {
+        router.replace('/')
+        return
+      }
+      const profiles: Array<{ id: string; name?: string | null }> = await res.json()
+      const me = profiles.find((p) => p.id === session.user.id)
+      if (!me || !(me.name || '').includes('上野')) {
+        router.replace('/')
+        return
+      }
+      if (!cancelled) setAuthChecked(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   const startRecording = useCallback(() => {
     setError(null)
@@ -125,9 +156,15 @@ export default function VoicePage() {
     setPhase('analyzing')
     setError(null)
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       const res = await fetch('/api/voice-task/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
         body: JSON.stringify({ text: transcript }),
       })
       const data = await res.json()
@@ -215,6 +252,14 @@ export default function VoicePage() {
     setInterim('')
     setAnalysis(null)
     setError(null)
+  }
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">
+        読み込み中...
+      </div>
+    )
   }
 
   return (
