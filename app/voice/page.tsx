@@ -32,7 +32,10 @@ type SpeechRecognitionResultList = {
   readonly length: number
   readonly [index: number]: SpeechRecognitionResult
 }
-type SpeechRecognitionEventLike = Event & { readonly results: SpeechRecognitionResultList }
+type SpeechRecognitionEventLike = Event & {
+  readonly results: SpeechRecognitionResultList
+  readonly resultIndex: number
+}
 type SpeechRecognitionInstance = {
   lang: string
   continuous: boolean
@@ -115,9 +118,11 @@ export default function VoicePage() {
     recognition.interimResults = true
 
     recognition.onresult = (event) => {
+      // event.results は累積リスト。今回イベントで新しく追加された分だけ
+      // 取り出すため resultIndex から開始する (ここを 0 にすると重複する)。
       let finalText = ''
       let interimText = ''
-      for (let i = 0; i < event.results.length; i++) {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         if (result.isFinal) {
           finalText += result[0].transcript
