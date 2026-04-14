@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-// サービスロールキーでRLSをバイパスして全プロフィールにアクセス
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireAuth, getServiceClient } from '@/lib/api-auth'
 
 // プロフィール一覧を取得
 export async function GET() {
-  const { data, error } = await supabase
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
+  const { data, error } = await getServiceClient()
     .from('profiles')
     .select('*')
     .order('login_id', { ascending: true, nullsFirst: false })
@@ -20,10 +17,13 @@ export async function GET() {
 
 // プロフィールを更新（管理者が使う）
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, ...updates } = body
 
-  const { data, error } = await supabase
+  const { data, error } = await getServiceClient()
     .from('profiles')
     .update(updates)
     .eq('id', id)

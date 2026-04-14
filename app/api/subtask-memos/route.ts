@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireAuth, getServiceClient } from '@/lib/api-auth'
 
 // メモ一覧を取得（subtask_id指定）
 export async function GET(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const subtaskId = searchParams.get('subtask_id')
 
   if (!subtaskId) return NextResponse.json({ error: 'subtask_id is required' }, { status: 400 })
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('subtask_memos')
     .select('*')
     .eq('subtask_id', subtaskId)
@@ -25,6 +23,9 @@ export async function GET(request: NextRequest) {
 
 // メモを追加
 export async function POST(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const body = await request.json()
   const { subtask_id, content, user_name } = body
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'subtask_id and content are required' }, { status: 400 })
   }
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('subtask_memos')
     .insert({ subtask_id, content, user_name })
     .select()
@@ -44,12 +45,15 @@ export async function POST(request: NextRequest) {
 
 // メモを削除
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const { error } = await getSupabase()
+  const { error } = await getServiceClient()
     .from('subtask_memos')
     .delete()
     .eq('id', id)

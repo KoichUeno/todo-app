@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAdmin, getServiceClient } from '@/lib/api-auth'
 
-// サービスロールキーを使ったAdminクライアント（ユーザー登録用）
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-// ユーザーをIDとパスワードで作成する
+// ユーザーをIDとパスワードで作成する (管理者のみ)
 export async function POST(request: NextRequest) {
+  const { error: authError } = await requireAdmin()
+  if (authError) return authError
+
+  const supabaseAdmin = getServiceClient()
   const body = await request.json()
   const { login_id, password, name, role } = body
 
@@ -27,7 +25,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
-    email_confirm: true, // メール確認不要
+    email_confirm: true,
     user_metadata: { name, role },
   })
 
@@ -35,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // profilesテーブルに登録（password_plainも保存）
+  // profilesテーブルに登録（password_plainも保存 - 旧挙動維持）
   await supabaseAdmin
     .from('profiles')
     .upsert({ id: data.user.id, name, role, login_id, password_plain: password }, { onConflict: 'id' })
@@ -43,8 +41,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
-// ユーザーのパスワードをリセットする
+// ユーザーのパスワードをリセットする (管理者のみ)
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await requireAdmin()
+  if (authError) return authError
+
+  const supabaseAdmin = getServiceClient()
   const body = await request.json()
   const { user_id, new_password } = body
 
@@ -64,14 +66,17 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // profilesテーブルのpassword_plainも更新
   await supabaseAdmin.from('profiles').update({ password_plain: new_password }).eq('id', user_id)
 
   return NextResponse.json({ success: true })
 }
 
-// ユーザーを削除する
+// ユーザーを削除する (管理者のみ)
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await requireAdmin()
+  if (authError) return authError
+
+  const supabaseAdmin = getServiceClient()
   const { searchParams } = new URL(request.url)
   const user_id = searchParams.get('user_id')
 
@@ -79,10 +84,8 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
   }
 
-  // profilesテーブルから削除
   await supabaseAdmin.from('profiles').delete().eq('id', user_id)
 
-  // Supabase Auth からも削除
   const { error } = await supabaseAdmin.auth.admin.deleteUser(user_id)
 
   if (error) {

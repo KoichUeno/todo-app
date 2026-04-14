@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireAuth, getServiceClient } from '@/lib/api-auth'
 
 // テンプレートのサブタスク一覧を取得
 export async function GET(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const template_id = searchParams.get('template_id')
 
   if (!template_id) return NextResponse.json({ error: 'template_id is required' }, { status: 400 })
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('template_subtasks')
     .select('*')
     .eq('template_id', template_id)
@@ -25,10 +23,13 @@ export async function GET(request: NextRequest) {
 
 // テンプレートにサブタスクを追加
 export async function POST(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const body = await request.json()
   const { template_id, title, assignee, order_num } = body
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('template_subtasks')
     .insert({ template_id, title, assignee, order_num })
     .select()
@@ -40,12 +41,15 @@ export async function POST(request: NextRequest) {
 
 // テンプレートのサブタスクを削除
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const { error } = await getSupabase()
+  const { error } = await getServiceClient()
     .from('template_subtasks')
     .delete()
     .eq('id', id)

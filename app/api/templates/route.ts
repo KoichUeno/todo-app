@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireAuth, getServiceClient } from '@/lib/api-auth'
 
 // テンプレート一覧を取得
 export async function GET() {
-  const { data, error } = await getSupabase()
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
+  const { data, error } = await getServiceClient()
     .from('templates')
     .select('*')
     .order('created_at', { ascending: true })
@@ -19,6 +17,9 @@ export async function GET() {
 
 // テンプレートを追加
 export async function POST(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const body = await request.json()
   const { title } = body
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'タイトルは必須です' }, { status: 400 })
   }
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('templates')
     .insert({ title })
     .select()
@@ -38,12 +39,15 @@ export async function POST(request: NextRequest) {
 
 // テンプレートを削除
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
   if (!id) return NextResponse.json({ error: 'IDが必要です' }, { status: 400 })
 
-  const { error } = await getSupabase()
+  const { error } = await getServiceClient()
     .from('templates')
     .delete()
     .eq('id', id)

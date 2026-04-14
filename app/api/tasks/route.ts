@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireAuth, getServiceClient } from '@/lib/api-auth'
 
 // タスク一覧を取得
 export async function GET() {
-  const { data, error } = await getSupabase()
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
+  const { data, error } = await getServiceClient()
     .from('tasks')
     .select('*, subtasks(*)')
     .order('created_at', { ascending: false })
@@ -25,8 +23,7 @@ async function generateTaskNumber(taskType: string): Promise<string> {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const base = `${prefix}${yyyy}${mm}`;
 
-  // 同じプレフィックスの最大連番を取得
-  const { data } = await getSupabase()
+  const { data } = await getServiceClient()
     .from('tasks')
     .select('task_number')
     .like('task_number', `${base}%`)
@@ -44,12 +41,15 @@ async function generateTaskNumber(taskType: string): Promise<string> {
 
 // タスクを追加
 export async function POST(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const body = await request.json()
   const { title, description, due_date, important_note, assignee, project_name, is_recurring, importance, category, client_type, task_type, data_location, client_id } = body
 
   const task_number = await generateTaskNumber(task_type);
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('tasks')
     .insert({ title, description, due_date, important_note, assignee, project_name, is_recurring, importance, category, client_type, task_type, data_location, client_id, task_number })
     .select()
@@ -59,12 +59,15 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
-// タスクを更新（完了/未完了の切り替えなど）
+// タスクを更新
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, ...updates } = body
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await getServiceClient()
     .from('tasks')
     .update(updates)
     .eq('id', id)
@@ -77,12 +80,15 @@ export async function PATCH(request: NextRequest) {
 
 // タスクを削除
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await requireAuth()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const { error } = await getSupabase()
+  const { error } = await getServiceClient()
     .from('tasks')
     .delete()
     .eq('id', id)
