@@ -156,7 +156,7 @@ export default function VoicePage() {
           const clients = (await clientsRes.json()) as Array<{ id: string; name: string }>
           const matched = clients.find((c) => c.name === analysis.client)
           if (matched) {
-            clientId = <matched.id>
+            clientId = matched.id
             projectName = matched.name
           } else {
             projectName = analysis.client
@@ -194,7 +194,7 @@ export default function VoicePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            task_id: <task.id>,
+            task_id: task.id,
             title,
             order_num: i + 1,
             assignee: analysis.assignee || '',
