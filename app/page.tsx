@@ -1232,6 +1232,14 @@ function HomeContent() {
             )}
           </div>
           <div className="flex gap-2">
+            {currentUser?.name?.includes("上野") && (
+              <button
+                onClick={() => router.push("/voice")}
+                className="text-xs text-white bg-blue-500 hover:bg-blue-600 border border-blue-500 px-3 py-1.5 rounded-lg transition-colors font-semibold"
+              >
+                🎤 音声入力
+              </button>
+            )}
             <button
               onClick={() => router.push("/dashboard")}
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
