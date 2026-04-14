@@ -177,6 +177,10 @@ function HomeContent() {
   const [newDataLocation, setNewDataLocation] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [newCategoryOther, setNewCategoryOther] = useState("");
+  // 新規タスクと一緒に登録するサブタスク (空行は登録時に無視される)
+  const [newInitialSubtasks, setNewInitialSubtasks] = useState<Array<{ title: string; assignee: string }>>([
+    { title: "", assignee: "" },
+  ]);
 
   // 新規タスクフォームの下書き自動保存・復元
   useEffect(() => {
@@ -521,7 +525,38 @@ function HomeContent() {
         return;
       }
       const newTask = await res.json();
-      setTasks((prev) => [{ ...newTask, subtasks: [], showSubtasks: false }, ...prev]);
+
+      // 初期サブタスクがあれば順に登録
+      const subtasksToCreate = newInitialSubtasks
+        .map((s) => ({ title: s.title.trim(), assignee: s.assignee.trim() }))
+        .filter((s) => s.title.length > 0);
+      const createdSubtasks: Subtask[] = [];
+      for (let i = 0; i < subtasksToCreate.length; i++) {
+        const s = subtasksToCreate[i];
+        try {
+          const sres = await fetch('/api/subtasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              task_id: newTask.id,
+              title: s.title,
+              assignee: s.assignee || null,
+              order_num: i + 1,
+            }),
+          });
+          if (sres.ok) {
+            const created = await sres.json();
+            createdSubtasks.push(created);
+          }
+        } catch {
+          // 1 件失敗してもタスク自体は登録できているので続行
+        }
+      }
+
+      setTasks((prev) => [
+        { ...newTask, subtasks: createdSubtasks, showSubtasks: createdSubtasks.length > 0 },
+        ...prev,
+      ]);
       setNewTitle("");
       setNewDescription("");
       setNewDueDate("");
@@ -536,6 +571,7 @@ function HomeContent() {
       setNewCategory("");
       setNewCategoryOther("");
       setNewClientId("");
+      setNewInitialSubtasks([{ title: "", assignee: "" }]);
       localStorage.removeItem("taskDraft");
     } catch (e) {
       setAddTaskError("ネットワークエラーが発生しました。再度お試しください。");
@@ -1407,6 +1443,60 @@ function HomeContent() {
                 >
                   {addingTask ? "登録中..." : "追加"}
                 </button>
+              </div>
+              {/* 初期サブタスク入力 */}
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">サブタスク（任意）</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewInitialSubtasks((prev) => [...prev, { title: "", assignee: "" }])}
+                    className="text-xs text-blue-500 hover:text-blue-600"
+                  >
+                    ＋ 行を追加
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {newInitialSubtasks.map((s, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={s.title}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setNewInitialSubtasks((prev) => prev.map((x, i) => (i === idx ? { ...x, title: v } : x)));
+                        }}
+                        placeholder={`サブタスク ${idx + 1}`}
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      <select
+                        value={s.assignee}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setNewInitialSubtasks((prev) => prev.map((x, i) => (i === idx ? { ...x, assignee: v } : x)));
+                        }}
+                        className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      >
+                        <option value="">担当者</option>
+                        {profiles.map((p) => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                      {newInitialSubtasks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewInitialSubtasks((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="text-gray-300 hover:text-red-500 text-lg leading-none px-1"
+                          aria-label="サブタスク行を削除"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
               {addTaskError && <p className="text-red-500 text-sm mt-1">{addTaskError}</p>}
             </div>
