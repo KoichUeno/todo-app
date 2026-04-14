@@ -104,7 +104,7 @@ ${assigneeNames.join('、')}
 }`
 
     // Anthropic Messages API を直接呼ぶ (SDK不要)
-    const anthropicRes = await fetch('<https://api.anthropic.com/v1/messages>', {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.ANTHROPIC_API_KEY,
