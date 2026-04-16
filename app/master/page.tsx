@@ -265,6 +265,9 @@ export default function MasterPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">マスター管理</h1>
           <div className="flex gap-2 flex-wrap">
+            <button onClick={() => router.push("/expert-urls")} className="text-xs text-purple-500 hover:text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg font-semibold">
+              AI専門家URL
+            </button>
             <button onClick={() => router.push("/clients")} className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg font-semibold">
               クライアントマスター
             </button>
@@ -344,6 +347,7 @@ export default function MasterPage() {
                       <option value="経営者">経営者</option>
                       <option value="管理者">管理者</option>
                       <option value="担当者">担当者</option>
+                      <option value="AI専門家">AI専門家</option>
                     </select>
                   </div>
                   <div className="flex gap-2 items-center">
@@ -372,7 +376,7 @@ export default function MasterPage() {
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-sm font-bold text-gray-700">登録ユーザー一覧</h2>
                 <div className="flex gap-1.5 flex-wrap">
-                  {["", "管理者", "IT担当", "経営者", "担当者"].map((role) => (
+                  {["", "管理者", "IT担当", "経営者", "担当者", "AI専門家"].map((role) => (
                     <button key={role} onClick={() => setUserFilter(userFilter === role ? "" : role)} className={`text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors ${userFilter === role ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
                       {role || "すべて"}
                     </button>
@@ -413,6 +417,7 @@ export default function MasterPage() {
                             <option value="経営者">経営者</option>
                             <option value="管理者">管理者</option>
                             <option value="担当者">担当者</option>
+                            <option value="AI専門家">AI専門家</option>
                           </select>
                         </div>
                         <div className="flex gap-2">
