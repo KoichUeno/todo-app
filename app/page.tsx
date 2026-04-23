@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter, useSearchParams } from "next/navigation";
+import { applyPlaceholders, detectPlaceholders } from "@/lib/template-placeholders";
 import {
   AlertTriangle,
   Repeat,
@@ -131,6 +132,260 @@ function HomeContent() {
   const [templateDueDate, setTemplateDueDate] = useState("");
   const [newTemplateTitle, setNewTemplateTitle] = useState("");
   const [showAddTemplate, setShowAddTemplate] = useState(false);
+  // テンプレートのプレースホルダ置換用の入力値
+  const [templateMonth, setTemplateMonth] = useState<string>(
+    () => String(new Date().getMonth() + 1)
+  );
+  const [templateClientId, setTemplateClientId] = useState<string>("");
+
+  // 完了サブタスクの折り畳み状態(taskId ごと、既定=折り畳み)
+  const [expandedCompletedSubtasks, setExpandedCompletedSubtasks] = useState<Record<string, boolean>>({});
+
+  // サブタスク担当者一括設定モーダル
+  const [bulkAssigneeTaskId, setBulkAssigneeTaskId] = useState<string | null>(null);
+  const [bulkAssigneePending, setBulkAssigneePending] = useState<Record<string, string>>({});
+  const [bulkAssigneeSaving, setBulkAssigneeSaving] = useState(false);
+
+  const openBulkAssigneeModal = (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const initial: Record<string, string> = {};
+    task.subtasks.forEach((s) => { initial[s.id] = s.assignee || ""; });
+    setBulkAssigneePending(initial);
+    setBulkAssigneeTaskId(taskId);
+  };
+
+  const closeBulkAssigneeModal = () => {
+    setBulkAssigneeTaskId(null);
+    setBulkAssigneePending({});
+  };
+
+  const saveBulkAssignees = async () => {
+    if (!bulkAssigneeTaskId) return;
+    const task = tasks.find((t) => t.id === bulkAssigneeTaskId);
+    if (!task) return;
+    // 変更のあったサブタスクだけ PATCH する
+    const changed = task.subtasks.filter((s) => {
+      const newVal = (bulkAssigneePending[s.id] ?? "").trim();
+      const oldVal = (s.assignee || "").trim();
+      return newVal !== oldVal;
+    });
+    if (changed.length === 0) {
+      closeBulkAssigneeModal();
+      return;
+    }
+    setBulkAssigneeSaving(true);
+    try {
+      await Promise.all(
+        changed.map((s) =>
+          fetch('/api/subtasks', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: s.id, assignee: bulkAssigneePending[s.id] || null }),
+          })
+        )
+      );
+      // ローカル状態を更新
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === bulkAssigneeTaskId
+            ? {
+                ...t,
+                subtasks: t.subtasks.map((s) => ({
+                  ...s,
+                  assignee: bulkAssigneePending[s.id] ?? s.assignee,
+                })),
+              }
+            : t
+        )
+      );
+      closeBulkAssigneeModal();
+    } finally {
+      setBulkAssigneeSaving(false);
+    }
+  };
+
+  const applyBulkAssigneeToAll = (name: string) => {
+    if (!bulkAssigneeTaskId) return;
+    const task = tasks.find((t) => t.id === bulkAssigneeTaskId);
+    if (!task) return;
+    const next: Record<string, string> = {};
+    task.subtasks.forEach((s) => { next[s.id] = name; });
+    setBulkAssigneePending(next);
+  };
+
+  // 繰越シリーズの過去履歴
+  type HistoryItem = {
+    id: string;
+    title: string;
+    task_number: string | null;
+    due_date: string | null;
+    status: string | null;
+    is_completed: boolean;
+    important_note: string | null;
+    created_at: string;
+    assignee: string | null;
+    project_name: string | null;
+    subtasks: Array<{
+      id: string;
+      title: string;
+      is_completed: boolean;
+      important_note: string | null;
+      description: string | null;
+      assignee: string | null;
+      order_num: number;
+    }>;
+  };
+  const [taskHistoryMap, setTaskHistoryMap] = useState<Record<string, HistoryItem[]>>({});
+  const [taskHistoryLoading, setTaskHistoryLoading] = useState<Record<string, boolean>>({});
+  // 履歴項目ごとの詳細展開状態(historyItemId → 展開中か)
+  const [expandedHistoryItems, setExpandedHistoryItems] = useState<Record<string, boolean>>({});
+
+  const fetchTaskHistory = async (taskId: string) => {
+    setTaskHistoryLoading((p) => ({ ...p, [taskId]: true }));
+    try {
+      const res = await fetch(`/api/tasks/history?task_id=${taskId}&months=12`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.history)) {
+        setTaskHistoryMap((prev) => ({ ...prev, [taskId]: data.history }));
+      }
+    } finally {
+      setTaskHistoryLoading((p) => ({ ...p, [taskId]: false }));
+    }
+  };
+
+  // タスクが展開されたら、まだ履歴が無いものを自動ロード
+  useEffect(() => {
+    const needsFetch = tasks
+      .filter((t) => t.showSubtasks && !taskHistoryMap[t.id] && !taskHistoryLoading[t.id])
+      .map((t) => t.id);
+    if (needsFetch.length === 0) return;
+    needsFetch.forEach((id) => { fetchTaskHistory(id); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks.map((t) => `${t.id}:${t.showSubtasks}`).join('|')]);
+
+  // タスク単位のチャット/メモ
+  type TaskMemo = {
+    id: string;
+    task_id: string;
+    content: string;
+    user_name: string;
+    created_at: string;
+  };
+  const [taskMemosMap, setTaskMemosMap] = useState<Record<string, TaskMemo[]>>({});
+  const [newTaskMemoInput, setNewTaskMemoInput] = useState<Record<string, string>>({});
+  const [taskMemoLoading, setTaskMemoLoading] = useState<Record<string, boolean>>({});
+
+  const fetchTaskMemos = async (taskId: string) => {
+    const res = await fetch(`/api/task-memos?task_id=${taskId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      setTaskMemosMap((prev) => ({ ...prev, [taskId]: data }));
+    }
+  };
+
+  const postTaskMemo = async (taskId: string) => {
+    const content = (newTaskMemoInput[taskId] || "").trim();
+    if (!content) return;
+    setTaskMemoLoading((p) => ({ ...p, [taskId]: true }));
+    try {
+      const res = await fetch('/api/task-memos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: taskId,
+          content,
+          user_name: currentUser?.name || '',
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setTaskMemosMap((prev) => ({
+          ...prev,
+          [taskId]: [created, ...(prev[taskId] || [])],
+        }));
+        setNewTaskMemoInput((p) => ({ ...p, [taskId]: "" }));
+      }
+    } finally {
+      setTaskMemoLoading((p) => ({ ...p, [taskId]: false }));
+    }
+  };
+
+  const deleteTaskMemo = async (taskId: string, memoId: string) => {
+    const res = await fetch(`/api/task-memos?id=${memoId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setTaskMemosMap((prev) => ({
+        ...prev,
+        [taskId]: (prev[taskId] || []).filter((m) => m.id !== memoId),
+      }));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || '削除できません');
+    }
+  };
+
+  // AI 重要事項サポート(上野さん限定、/api/ai/suggest-concerns を呼ぶ)
+  // scope をキーにして複数の入力箇所で独立に状態管理する:
+  //   - 'new-task' = 新規タスク作成フォーム
+  //   - 'sub:<taskId>' = 該当タスクへの新規サブタスク追加フォーム
+  //   - 'edit-sub:<subtaskId>' = 既存サブタスク編集フォーム
+  const [aiConcernsMap, setAiConcernsMap] = useState<
+    Record<string, { questions: string[]; loading: boolean; error: string | null }>
+  >({});
+
+  const fetchAIConcerns = async (
+    scope: string,
+    params: { task_title?: string; subtask_title?: string; client_id?: string; category?: string }
+  ) => {
+    setAiConcernsMap((prev) => ({
+      ...prev,
+      [scope]: { questions: [], loading: true, error: null },
+    }));
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch('/api/ai/suggest-concerns', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'AI 相談に失敗しました');
+      }
+      setAiConcernsMap((prev) => ({
+        ...prev,
+        [scope]: { questions: data.questions as string[], loading: false, error: null },
+      }));
+    } catch (e) {
+      setAiConcernsMap((prev) => ({
+        ...prev,
+        [scope]: {
+          questions: [],
+          loading: false,
+          error: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
+  };
+
+  const clearAIConcerns = (scope: string) => {
+    setAiConcernsMap((prev) => {
+      const next = { ...prev };
+      delete next[scope];
+      return next;
+    });
+  };
+
+  // 重要事項の AI 問いかけはログイン済み全ユーザーが利用可能
+  // (2026-04-16 に上野さん限定を解除)
+  const canUseAIConcerns = !!currentUser;
 
   const [newSubtaskTitles, setNewSubtaskTitles] = useState<Record<string, string>>({});
 
@@ -165,6 +420,8 @@ function HomeContent() {
   const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<Record<string, string>>({});
   const [newSubtaskDescriptions, setNewSubtaskDescriptions] = useState<Record<string, string>>({});
   const [newSubtaskNotes, setNewSubtaskNotes] = useState<Record<string, string>>({});
+  const [newSubtaskNoteErrors, setNewSubtaskNoteErrors] = useState<Record<string, string>>({});
+  const [editingSubtaskNoteError, setEditingSubtaskNoteError] = useState("");
   const [newSubtaskDueDates, setNewSubtaskDueDates] = useState<Record<string, string>>({});
   const [newSubtaskStartDates, setNewSubtaskStartDates] = useState<Record<string, string>>({});
 
@@ -271,6 +528,8 @@ function HomeContent() {
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateSubtasksMap, setTemplateSubtasksMap] = useState<Record<string, TemplateSubtask[]>>({});
+  const [selectedTplSubtaskIds, setSelectedTplSubtaskIds] = useState<Record<string, boolean>>({});
+  const [tplErrors, setTplErrors] = useState<{ client?: string; date?: string }>({});
   const [newTplSubtaskTitle, setNewTplSubtaskTitle] = useState<Record<string, string>>({});
   const [newTplSubtaskAssignee, setNewTplSubtaskAssignee] = useState<Record<string, string>>({});
 
@@ -332,14 +591,25 @@ function HomeContent() {
 
   const fetchTasks = async () => {
     setLoading(true);
-    const res = await fetch('/api/tasks');
-    const data = await res.json();
-    const tasksWithUI = (data || []).map((t: Task) => ({
-      ...t,
-      showSubtasks: false,
-    }));
-    setTasks(tasksWithUI);
-    setLoading(false);
+    try {
+      const res = await fetch('/api/tasks');
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) {
+        console.error('fetchTasks failed:', data);
+        setTasks([]);
+        return;
+      }
+      const tasksWithUI = data.map((t: Task) => ({
+        ...t,
+        showSubtasks: false,
+      }));
+      setTasks(tasksWithUI);
+    } catch (e) {
+      console.error('fetchTasks error:', e);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchProfiles = async () => {
@@ -361,11 +631,21 @@ function HomeContent() {
   };
 
   const fetchTemplateSubtasks = async (templateId: string) => {
-    if (templateSubtasksMap[templateId]) return;
+    if (templateSubtasksMap[templateId]) {
+      // 既にロード済み → 全て選択済みに戻す
+      const ids: Record<string, boolean> = {};
+      templateSubtasksMap[templateId].forEach((s) => { ids[s.id] = true; });
+      setSelectedTplSubtaskIds(ids);
+      return;
+    }
     const res = await fetch(`/api/template-subtasks?template_id=${templateId}`);
     if (res.ok) {
-      const data = await res.json();
+      const data: TemplateSubtask[] = await res.json();
       setTemplateSubtasksMap((prev) => ({ ...prev, [templateId]: data || [] }));
+      // 全サブタスクを選択済みで初期化
+      const ids: Record<string, boolean> = {};
+      (data || []).forEach((s) => { ids[s.id] = true; });
+      setSelectedTplSubtaskIds(ids);
     }
   };
 
@@ -481,20 +761,68 @@ function HomeContent() {
   // テンプレートからタスクを追加する
   const addFromTemplate = async () => {
     if (!selectedTemplate || !selectedTemplateId) return;
+
+    // バリデーション
+    const placeholders = detectPlaceholders(selectedTemplate);
+    const needsClient = placeholders.includes('clientName');
+    const errors: { client?: string; date?: string } = {};
+    if (needsClient && !templateClientId) errors.client = "会社を選択してください";
+    if (!templateDueDate) errors.date = "締切日を入力してください";
+    if (Object.keys(errors).length > 0) {
+      setTplErrors(errors);
+      return;
+    }
+    setTplErrors({});
+
+    // プレースホルダ置換用の値を組み立てる
+    const selectedClient = clients.find((c) => c.id === templateClientId);
+    const placeholderValues = {
+      month: templateMonth || String(new Date().getMonth() + 1),
+      clientName: selectedClient?.name ?? null,
+    };
+
+    // タイトルにプレースホルダが含まれていれば置換
+    const resolvedTitle = applyPlaceholders(selectedTemplate, placeholderValues);
+
+    // テンプレ名から task_type / category を推定(申告・月次入力の定例運用向け)
+    let inferredTaskType: string | null = null;
+    let inferredCategory: string | null = null;
+    if (selectedTemplate.includes("申告")) {
+      inferredTaskType = "定例";
+      inferredCategory = "申告";
+    } else if (selectedTemplate.includes("月次")) {
+      inferredTaskType = "定例";
+      inferredCategory = "帳簿入力";
+    }
+
     const res = await fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: selectedTemplate, due_date: templateDueDate || null, is_recurring: true }),
+      body: JSON.stringify({
+        title: resolvedTitle,
+        due_date: templateDueDate || null,
+        is_recurring: true,
+        client_id: selectedClient?.id || null,
+        project_name: selectedClient?.name || null,
+        task_type: inferredTaskType,
+        category: inferredCategory,
+        source_template_id: selectedTemplateId,
+      }),
     });
     const newTask = await res.json();
 
-    const subs = templateSubtasksMap[selectedTemplateId] || [];
+    const subs = (templateSubtasksMap[selectedTemplateId] || []).filter((s) => selectedTplSubtaskIds[s.id]);
     const createdSubs = await Promise.all(
       subs.map((sub, i) =>
         fetch('/api/subtasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task_id: newTask.id, title: sub.title, assignee: sub.assignee, order_num: i + 1 }),
+          body: JSON.stringify({
+            task_id: newTask.id,
+            title: applyPlaceholders(sub.title, placeholderValues),
+            assignee: sub.assignee,
+            order_num: i + 1,
+          }),
         }).then((r) => r.json())
       )
     );
@@ -503,6 +831,7 @@ function HomeContent() {
     setSelectedTemplate(null);
     setSelectedTemplateId(null);
     setTemplateDueDate("");
+    setTemplateClientId("");
   };
 
   // タスクを追加する
@@ -511,6 +840,10 @@ function HomeContent() {
 
   const addTask = async () => {
     if (!newTitle.trim() || addingTask) return;
+    if (!newImportantNote.trim()) {
+      setAddTaskError("重要事項を入力してください。重要な注意点や確認事項を記録しておきましょう。");
+      return;
+    }
     setAddingTask(true);
     setAddTaskError("");
     try {
@@ -841,11 +1174,16 @@ function HomeContent() {
   const addSubtask = async (taskId: string) => {
     const title = newSubtaskTitles[taskId]?.trim();
     if (!title) return;
+    const important_note = newSubtaskNotes[taskId]?.trim() || "";
+    if (!important_note) {
+      setNewSubtaskNoteErrors((p) => ({ ...p, [taskId]: "重要事項を入力してください" }));
+      return;
+    }
+    setNewSubtaskNoteErrors((p) => ({ ...p, [taskId]: "" }));
     const task = tasks.find((t) => t.id === taskId);
     const order_num = (task?.subtasks.length ?? 0) + 1;
     const assignee = newSubtaskAssignees[taskId]?.trim() || "";
     const description = newSubtaskDescriptions[taskId]?.trim() || "";
-    const important_note = newSubtaskNotes[taskId]?.trim() || "";
     const due_date = newSubtaskDueDates[taskId] || null;
     const start_date = newSubtaskStartDates[taskId] || null;
     const res = await fetch('/api/subtasks', {
@@ -867,12 +1205,17 @@ function HomeContent() {
   const insertSubtask = async (taskId: string, afterIndex: number) => {
     const title = newSubtaskTitles[taskId]?.trim();
     if (!title) return;
+    const important_note = newSubtaskNotes[taskId]?.trim() || "";
+    if (!important_note) {
+      setNewSubtaskNoteErrors((p) => ({ ...p, [taskId]: "重要事項を入力してください" }));
+      return;
+    }
+    setNewSubtaskNoteErrors((p) => ({ ...p, [taskId]: "" }));
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
-    const order_num = afterIndex + 2; // afterIndexの次の位置
+    const order_num = afterIndex + 2;
     const assignee = newSubtaskAssignees[taskId]?.trim() || "";
     const description = newSubtaskDescriptions[taskId]?.trim() || "";
-    const important_note = newSubtaskNotes[taskId]?.trim() || "";
     const due_date = newSubtaskDueDates[taskId] || null;
     const start_date = newSubtaskStartDates[taskId] || null;
     const res = await fetch('/api/subtasks', {
@@ -933,6 +1276,11 @@ function HomeContent() {
   // サブタスクの編集を保存する
   const saveSubtaskEdit = async (taskId: string, subtaskId: string) => {
     if (!editingSubtaskTitle.trim()) return;
+    if (!editingSubtaskImportantNote.trim()) {
+      setEditingSubtaskNoteError("重要事項を入力してください");
+      return;
+    }
+    setEditingSubtaskNoteError("");
     await fetch('/api/subtasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1001,6 +1349,10 @@ function HomeContent() {
   const isAdmin = !currentUser || currentUser.role === '管理者' || currentUser.role === 'admin';
 
   const CATEGORIES = ["総務", "帳簿入力", "帳簿確認", "申告", "コンサルティング", "その他"];
+
+  // 重要事項・概要のプリセットテンプレート
+  const NOTE_PRESETS = ["発送先・内容を二重確認", "税務調査で指摘されやすい項目あり", "届出書の提出要否を確認", "みなし配当・組織再編の影響に注意", "個人経費と法人経費の区分を確認", "前年度との差異を重点確認", "預り資料の返却を忘れずに", "承継・遺留分の検討が必要"];
+  const DESC_PRESETS = ["資料収集後に着手", "前年度を参照して進める", "通達・裁決例を確認してから着手", "事前にヒアリングしてから作成"];
 
   // カテゴリーの実際の保存値を取得（「その他」の場合は自由入力値）
   const resolveCategory = (cat: string, other: string) =>
@@ -1100,14 +1452,87 @@ function HomeContent() {
               rows={3}
               className="border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
             />
-            <label className="text-[10px] text-gray-400 font-semibold">重要事項</label>
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {DESC_PRESETS.map((p) => (
+                <button key={p} type="button" onClick={() => setEditingSubtaskDescription(p)}
+                  className="text-[10px] bg-gray-50 border border-gray-200 text-gray-500 px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors">
+                  {p}
+                </button>
+              ))}
+            </div>
+            <label className="text-[10px] text-gray-400 font-semibold">重要事項 <span className="text-red-400">*必須</span></label>
             <input
               type="text"
               value={editingSubtaskImportantNote}
-              onChange={(e) => setEditingSubtaskImportantNote(e.target.value)}
-              placeholder="重要事項（任意）"
-              className="border border-orange-200 rounded px-2 py-1.5 text-xs text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-orange-50"
+              onChange={(e) => { setEditingSubtaskImportantNote(e.target.value); if (editingSubtaskNoteError) setEditingSubtaskNoteError(""); }}
+              placeholder="⚠ このサブタスクで注意すべき点はありますか?(必須)"
+              className={`border rounded px-2 py-1.5 text-xs text-orange-700 focus:outline-none focus:ring-2 bg-orange-50 ${editingSubtaskNoteError ? "border-red-400 focus:ring-red-300" : "border-orange-200 focus:ring-orange-300"}`}
             />
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {NOTE_PRESETS.map((p) => (
+                <button key={p} type="button" onClick={() => { setEditingSubtaskImportantNote(p); setEditingSubtaskNoteError(""); }}
+                  className="text-[10px] bg-orange-50 border border-orange-200 text-orange-600 px-1.5 py-0.5 rounded hover:bg-orange-100 transition-colors">
+                  {p}
+                </button>
+              ))}
+            </div>
+            {editingSubtaskNoteError && <p className="text-[10px] text-red-500">⚠ {editingSubtaskNoteError}</p>}
+            {canUseAIConcerns && (() => {
+              const scope = `edit-sub:${editingSubtaskId}`;
+              const ai = aiConcernsMap[scope];
+              const parentTask = tasks.find((t) => t.id === editingSubtaskParentTaskId);
+              return (
+                <div className="mt-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editingSubtaskTitle.trim()) return;
+                        fetchAIConcerns(scope, {
+                          subtask_title: editingSubtaskTitle,
+                          task_title: parentTask?.title || '',
+                          client_id: parentTask?.client_id || undefined,
+                          category: parentTask?.category || undefined,
+                        });
+                      }}
+                      disabled={!editingSubtaskTitle.trim() || ai?.loading}
+                      className="text-[10px] bg-amber-100 hover:bg-amber-200 disabled:bg-gray-100 disabled:text-gray-400 text-amber-700 font-semibold px-2 py-0.5 rounded-full border border-amber-300 disabled:border-gray-200 transition-colors"
+                    >
+                      {ai?.loading ? '🤔 考え中...' : '🤔 想定論点をAIに聞く'}
+                    </button>
+                    {ai && !ai.loading && (
+                      <button
+                        type="button"
+                        onClick={() => clearAIConcerns(scope)}
+                        className="text-[9px] text-gray-400 hover:text-gray-600"
+                      >
+                        閉じる
+                      </button>
+                    )}
+                  </div>
+                  {ai?.error && (
+                    <div className="text-[10px] text-red-500 bg-red-50 border border-red-200 rounded p-2 mt-1">
+                      {ai.error}
+                    </div>
+                  )}
+                  {ai?.questions && ai.questions.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-1">
+                      <p className="text-[9px] text-amber-700 font-semibold mb-1">
+                        🤔 AI からの問いかけ(参考・自分の言葉で書いてください)
+                      </p>
+                      <ol className="text-[10px] text-gray-700 space-y-1 list-decimal list-inside">
+                        {ai.questions.map((q, i) => (
+                          <li key={i} className="leading-snug">{q}</li>
+                        ))}
+                      </ol>
+                      <p className="text-[8px] text-gray-400 mt-1">
+                        ※ ヒントです。入力欄に自動挿入されません。
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <label className="text-[10px] text-gray-400 font-semibold">ステータス</label>
             <select
               value={editingSubtaskStatus}
@@ -1197,6 +1622,11 @@ function HomeContent() {
                   // 新規追加
                   const title = editingSubtaskTitle.trim();
                   if (!title) return;
+                  if (!editingSubtaskImportantNote.trim()) {
+                    setEditingSubtaskNoteError("重要事項を入力してください");
+                    return;
+                  }
+                  setEditingSubtaskNoteError("");
                   const task = tasks.find(t => t.id === editingSubtaskParentTaskId);
                   if (!task) return;
                   const isInsert = insertSubtaskAfter?.taskId === editingSubtaskParentTaskId;
@@ -1255,6 +1685,112 @@ function HomeContent() {
       {editingSubtaskId && (
         <div className="fixed inset-0 bg-black/10 z-40" onClick={() => { setEditingSubtaskId(null); setEditingSubtaskParentTaskId(null); clearSubtaskDraft(); }} />
       )}
+
+      {/* サブタスク担当者一括設定モーダル */}
+      {bulkAssigneeTaskId && (() => {
+        const task = tasks.find((t) => t.id === bulkAssigneeTaskId);
+        if (!task) return null;
+        const hasChanges = task.subtasks.some((s) => (bulkAssigneePending[s.id] ?? "").trim() !== (s.assignee || "").trim());
+        return (
+          <div
+            className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+            onClick={closeBulkAssigneeModal}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ヘッダー */}
+              <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-800">サブタスク担当者の一括設定</h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5 truncate">{task.title}</p>
+                </div>
+                <button
+                  onClick={closeBulkAssigneeModal}
+                  className="text-gray-400 hover:text-gray-600 text-xl"
+                  aria-label="閉じる"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* 全員に〇〇 一括適用 */}
+              <div className="px-5 py-2 bg-gray-50 border-b border-gray-200 flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-gray-500 shrink-0">全サブタスクに一括:</span>
+                <button
+                  onClick={() => applyBulkAssigneeToAll("")}
+                  className="text-[10px] bg-white border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full hover:bg-gray-100"
+                >
+                  空欄
+                </button>
+                {profiles.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => applyBulkAssigneeToAll(p.name || "")}
+                    className="text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* サブタスクごとの担当者選択 */}
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                {task.subtasks.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-6">サブタスクがありません</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {task.subtasks.map((sub) => {
+                      const changed = (bulkAssigneePending[sub.id] ?? "").trim() !== (sub.assignee || "").trim();
+                      return (
+                        <div key={sub.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${changed ? "bg-yellow-50 border border-yellow-200" : "bg-gray-50"}`}>
+                          <span className={`text-xs flex-1 min-w-0 truncate ${sub.is_completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                            {sub.order_num}. {sub.title}
+                          </span>
+                          <select
+                            value={bulkAssigneePending[sub.id] ?? ""}
+                            onChange={(e) => setBulkAssigneePending((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                            className="w-32 border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                          >
+                            <option value="">(空欄)</option>
+                            {profiles.map((p) => (
+                              <option key={p.id} value={p.name || ""}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* フッター */}
+              <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+                <p className="text-[10px] text-gray-500">
+                  {hasChanges ? "黄色の行は変更されています" : "変更はありません"}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={closeBulkAssigneeModal}
+                    disabled={bulkAssigneeSaving}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-4 py-1.5"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={saveBulkAssignees}
+                    disabled={bulkAssigneeSaving || !hasChanges}
+                    className="text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-bold px-5 py-1.5 rounded-lg transition-colors"
+                  >
+                    {bulkAssigneeSaving ? "保存中..." : "一括保存"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="max-w-7xl mx-auto overflow-x-auto">
 
         {/* タイトル */}
@@ -1294,6 +1830,34 @@ function HomeContent() {
             >
               マスター管理
             </button>
+            {/* 他 GW へのリンク */}
+            <div className="flex items-center gap-1 border-l border-gray-200 pl-2 ml-1">
+              <span className="text-[10px] text-gray-400 mr-1">他のGW:</span>
+              <a
+                href={process.env.NEXT_PUBLIC_KAIKEI_GW_URL || "http://localhost:3100"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 px-2 py-1.5 rounded transition-colors"
+              >
+                KAIKEI GW ↗
+              </a>
+              <a
+                href={process.env.NEXT_PUBLIC_SOUZOKU_GW_URL || "http://localhost:3300"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 px-2 py-1.5 rounded transition-colors"
+              >
+                SOUZOKU GW ↗
+              </a>
+              <a
+                href={process.env.NEXT_PUBLIC_KABUKA_GW_URL || "http://localhost:3200"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 px-2 py-1.5 rounded transition-colors"
+              >
+                KABUKA GW ↗
+              </a>
+            </div>
             <button
               onClick={handleLogout}
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
@@ -1402,14 +1966,68 @@ function HomeContent() {
                   毎月繰り返し
                 </label>
               </div>
-              <div className="flex gap-3 mb-2">
+              <div className="flex flex-col gap-1 mb-2">
                 <input
                   type="text"
-                  placeholder="重要事項（任意）"
+                  placeholder="⚠ このタスクで注意すべき点はありますか?（必須)"
                   value={newImportantNote}
-                  onChange={(e) => setNewImportantNote(e.target.value)}
-                  className="flex-1 border border-orange-200 rounded-lg px-4 py-2 text-orange-700 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder-orange-300"
+                  onChange={(e) => { setNewImportantNote(e.target.value); if (addTaskError.includes("重要事項")) setAddTaskError(""); }}
+                  className={`flex-1 border rounded-lg px-4 py-2 text-orange-700 bg-orange-50 focus:outline-none focus:ring-2 placeholder-orange-300 ${addTaskError.includes("重要事項") ? "border-red-400 focus:ring-red-300" : "border-orange-200 focus:ring-orange-300"}`}
                 />
+                {addTaskError.includes("重要事項") && (
+                  <p className="text-xs text-red-500 px-1">⚠ {addTaskError}</p>
+                )}
+                {canUseAIConcerns && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newTitle.trim()) return;
+                        const selectedClient = clients.find((c) => c.id === newClientId);
+                        fetchAIConcerns('new-task', {
+                          task_title: newTitle,
+                          client_id: selectedClient?.id,
+                          category: resolveCategory(newCategory, newCategoryOther) || undefined,
+                        });
+                      }}
+                      disabled={!newTitle.trim() || aiConcernsMap['new-task']?.loading}
+                      className="text-[11px] bg-amber-100 hover:bg-amber-200 disabled:bg-gray-100 disabled:text-gray-400 text-amber-700 font-semibold px-3 py-1 rounded-full border border-amber-300 disabled:border-gray-200 transition-colors"
+                    >
+                      {aiConcernsMap['new-task']?.loading
+                        ? '🤔 考え中...'
+                        : '🤔 こんな論点は想定されませんか?(AIに聞く)'}
+                    </button>
+                    {aiConcernsMap['new-task'] && !aiConcernsMap['new-task'].loading && (
+                      <button
+                        type="button"
+                        onClick={() => clearAIConcerns('new-task')}
+                        className="text-[10px] text-gray-400 hover:text-gray-600"
+                      >
+                        閉じる
+                      </button>
+                    )}
+                  </div>
+                )}
+                {aiConcernsMap['new-task']?.error && (
+                  <div className="text-[10px] text-red-500 bg-red-50 border border-red-200 rounded p-2 mt-1">
+                    {aiConcernsMap['new-task'].error}
+                  </div>
+                )}
+                {aiConcernsMap['new-task']?.questions && aiConcernsMap['new-task'].questions.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-1">
+                    <p className="text-[10px] text-amber-700 font-semibold mb-2">
+                      🤔 AI からの問いかけ(参考・自分の言葉で書いてください)
+                    </p>
+                    <ol className="text-xs text-gray-700 space-y-1.5 list-decimal list-inside">
+                      {aiConcernsMap['new-task'].questions.map((q, i) => (
+                        <li key={i} className="leading-relaxed">{q}</li>
+                      ))}
+                    </ol>
+                    <p className="text-[9px] text-gray-400 mt-2">
+                      ※ 上記は思考のヒントです。入力欄には自動挿入されません。自分の言葉で書いてください。
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex gap-3 flex-wrap">
                 <select
@@ -1566,28 +2184,92 @@ function HomeContent() {
                 )}
               </div>
 
-              {selectedTemplate && selectedTemplateId && (
+              {selectedTemplate && selectedTemplateId && (() => {
+                // プレースホルダの検出
+                const placeholders = detectPlaceholders(selectedTemplate);
+                const needsMonth = placeholders.includes('month');
+                const needsClient = placeholders.includes('clientName');
+                const selectedClient = clients.find((c) => c.id === templateClientId);
+                const canApply =
+                  (!needsClient || !!selectedClient) && !!templateDueDate;
+                const previewTitle = applyPlaceholders(selectedTemplate, {
+                  month: templateMonth,
+                  clientName: selectedClient?.name ?? (needsClient ? "(会社を選択)" : null),
+                });
+
+                return (
                 <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-sm text-blue-700 font-semibold shrink-0">{selectedTemplate}</span>
-                    <input
-                      type="date"
-                      value={templateDueDate}
-                      onChange={(e) => setTemplateDueDate(e.target.value)}
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
-                    <button
-                      onClick={addFromTemplate}
-                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors shrink-0"
-                    >
-                      追加
-                    </button>
-                    <button
-                      onClick={() => { setSelectedTemplate(null); setSelectedTemplateId(null); }}
-                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors shrink-0"
-                    >
-                      キャンセル
-                    </button>
+                  {/* プレビュー: プレースホルダが置換された後のタイトル */}
+                  <div className="mb-2 text-sm">
+                    <span className="text-[10px] text-blue-500 mr-2">生成されるタイトル</span>
+                    <span className="font-semibold text-blue-800">{previewTitle}</span>
+                  </div>
+
+                  {/* プレースホルダ入力欄: 必要なテンプレのときだけ表示 */}
+                  {(needsMonth || needsClient) && (
+                    <div className="mb-3 flex items-center gap-2 flex-wrap">
+                      {needsMonth && (
+                        <div className="flex items-center gap-1">
+                          <label className="text-[10px] text-blue-600">月</label>
+                          <select
+                            value={templateMonth}
+                            onChange={(e) => setTemplateMonth(e.target.value)}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                          >
+                            {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
+                              <option key={m} value={m}>{m}月</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {needsClient && (
+                        <div className="flex flex-col gap-0.5 flex-1 min-w-[180px]">
+                          <div className="flex items-center gap-1">
+                            <label className="text-[10px] text-blue-600">会社</label>
+                            <select
+                              value={templateClientId}
+                              onChange={(e) => { setTemplateClientId(e.target.value); setTplErrors((p) => ({ ...p, client: undefined })); }}
+                              className={`flex-1 border rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 ${tplErrors.client ? "border-red-400" : "border-gray-200"}`}
+                            >
+                              <option value="">(選択してください)</option>
+                              {clients.map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {tplErrors.client && (
+                            <p className="text-[10px] text-red-500 pl-6">⚠ {tplErrors.client}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1 mb-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="date"
+                        value={templateDueDate}
+                        onChange={(e) => { setTemplateDueDate(e.target.value); setTplErrors((p) => ({ ...p, date: undefined })); }}
+                        placeholder="締切日"
+                        className={`flex-1 border rounded-lg px-3 py-1.5 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 ${tplErrors.date ? "border-red-400" : "border-gray-200"}`}
+                      />
+                      <button
+                        onClick={addFromTemplate}
+                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors shrink-0"
+                      >
+                        追加
+                      </button>
+                      <button
+                        onClick={() => { setSelectedTemplate(null); setSelectedTemplateId(null); setTemplateClientId(""); setTplErrors({}); }}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                    {tplErrors.date && (
+                      <p className="text-[10px] text-red-500">⚠ {tplErrors.date}</p>
+                    )}
                   </div>
 
                   {/* テンプレートのサブタスク一覧 */}
@@ -1595,7 +2277,15 @@ function HomeContent() {
                     <p className="text-xs text-blue-600 font-semibold mb-1.5">サブタスクテンプレート</p>
                     {(templateSubtasksMap[selectedTemplateId] || []).map((sub) => (
                       <div key={sub.id} className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-gray-600 flex-1">・{sub.title}{sub.assignee && <span className="text-blue-400 ml-1">👤{sub.assignee}</span>}</span>
+                        <input
+                          type="checkbox"
+                          checked={!!selectedTplSubtaskIds[sub.id]}
+                          onChange={(e) => setSelectedTplSubtaskIds((prev) => ({ ...prev, [sub.id]: e.target.checked }))}
+                          className="w-3.5 h-3.5 accent-blue-500 cursor-pointer shrink-0"
+                        />
+                        <span className={`text-xs flex-1 ${selectedTplSubtaskIds[sub.id] ? "text-gray-700" : "text-gray-300 line-through"}`}>
+                          {sub.title}{sub.assignee && <span className="text-blue-400 ml-1">👤{sub.assignee}</span>}
+                        </span>
                         <button
                           onClick={() => deleteTemplateSubtask(selectedTemplateId, sub.id)}
                           className="text-gray-300 hover:text-red-400 text-xs"
@@ -1628,7 +2318,8 @@ function HomeContent() {
                     </div>
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* フィルター */}
@@ -1973,13 +2664,23 @@ function HomeContent() {
                                   rows={4}
                                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y"
                                 />
-                                <input
-                                  type="text"
-                                  value={editingTaskImportantNote}
-                                  onChange={(e) => setEditingTaskImportantNote(e.target.value)}
-                                  placeholder="重要事項（任意）"
-                                  className="w-full border border-orange-200 rounded-lg px-3 py-1.5 text-sm text-orange-700 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder-orange-300"
-                                />
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={editingTaskImportantNote}
+                                    onChange={(e) => setEditingTaskImportantNote(e.target.value)}
+                                    placeholder="重要事項（任意）"
+                                    className="w-full border border-orange-200 rounded-lg px-3 py-1.5 text-sm text-orange-700 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder-orange-300"
+                                  />
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {NOTE_PRESETS.map((p) => (
+                                      <button key={p} type="button" onClick={() => setEditingTaskImportantNote(p)}
+                                        className="text-[10px] bg-orange-50 border border-orange-200 text-orange-500 px-1.5 py-0.5 rounded hover:bg-orange-100 transition-colors">
+                                        {p}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                                 <div className="pb-1">
                                 <div className="flex gap-2 items-center flex-wrap">
                                   <ClientComboBox
@@ -2123,7 +2824,38 @@ function HomeContent() {
 
                             {/* サブタスク一覧 */}
                             <div>
-                              <p className="text-xs font-semibold text-gray-400 mb-2">サブタスク</p>
+                              {(() => {
+                                const completedCount = task.subtasks.filter((s) => s.is_completed).length;
+                                const isExpanded = expandedCompletedSubtasks[task.id] ?? false;
+                                return (
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-semibold text-gray-400">
+                                      サブタスク <span className="text-gray-300 font-normal">({task.subtasks.length - completedCount} 件 進行中{completedCount > 0 && ` / ${completedCount} 件 完了`})</span>
+                                    </p>
+                                    <div className="flex gap-2 items-center">
+                                      {task.subtasks.length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openBulkAssigneeModal(task.id)}
+                                          className="text-[10px] text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2 py-0.5 rounded-full transition-colors"
+                                          title="サブタスクの担当者をまとめて設定"
+                                        >
+                                          👥 担当者を一括設定
+                                        </button>
+                                      )}
+                                      {completedCount > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedCompletedSubtasks((p) => ({ ...p, [task.id]: !isExpanded }))}
+                                          className="text-[10px] text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 px-2 py-0.5 rounded-full transition-colors"
+                                        >
+                                          {isExpanded ? `▲ 完了済み ${completedCount} 件を畳む` : `▼ 完了済み ${completedCount} 件を表示`}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                           <DragDropContext onDragEnd={(result) => reorderSubtasks(task.id, result)}>
                             <Droppable droppableId={task.id}>
                               {(provided) => (
@@ -2132,14 +2864,19 @@ function HomeContent() {
                                   ref={provided.innerRef}
                                   {...provided.droppableProps}
                                 >
-                                  {task.subtasks.map((sub, index) => (
+                                  {task.subtasks.map((sub, index) => {
+                                    const isExpanded = expandedCompletedSubtasks[task.id] ?? false;
+                                    // 完了済みが折り畳まれているときは非表示にする
+                                    // (DOM には残すので index/drag の整合性は保たれる)
+                                    const hiddenByCollapse = sub.is_completed && !isExpanded;
+                                    return (
                                     <React.Fragment key={sub.id}>
                                     <Draggable draggableId={sub.id} index={index}>
                                       {(provided, snapshot) => (
                                         <div
                                           ref={provided.innerRef}
                                           {...provided.draggableProps}
-                                          className={`flex items-start gap-2 rounded-lg ${snapshot.isDragging ? "bg-blue-50 shadow-md" : ""}`}
+                                          className={`flex items-start gap-2 rounded-lg ${snapshot.isDragging ? "bg-blue-50 shadow-md" : ""} ${hiddenByCollapse ? "hidden" : ""}`}
                                         >
                                           {/* ドラッグハンドル */}
                                           <span
@@ -2175,9 +2912,11 @@ function HomeContent() {
                                               {sub.important_note && (
                                                 <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-0.5"><AlertTriangle size={10} /> {sub.important_note}</p>
                                               )}
-                                              {sub.assignee && (
+                                              {sub.assignee ? (
                                                 <p className="text-xs text-blue-400 mt-0.5 flex items-center gap-0.5"><User size={10} /> {sub.assignee}</p>
-                                              )}
+                                              ) : task.assignee ? (
+                                                <p className="text-xs text-blue-300/70 mt-0.5 flex items-center gap-0.5" title="サブタスク担当者が未指定のため、タスク担当者を継承"><User size={10} /> {task.assignee} <span className="text-[9px] text-gray-400 ml-0.5">(継承)</span></p>
+                                              ) : null}
                                               {(sub.start_date || sub.due_date) && (
                                                 <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-0.5">
                                                   <CalendarDays size={10} />
@@ -2234,7 +2973,8 @@ function HomeContent() {
                                       </button>
                                     </div>
                                     </React.Fragment>
-                                  ))}{provided.placeholder}
+                                    );
+                                  })}{provided.placeholder}
                                 </div>
                               )}
                             </Droppable>
@@ -2255,6 +2995,204 @@ function HomeContent() {
                           >
                             ＋ サブタスクを追加
                           </button>
+
+                          {/* 繰越シリーズの過去履歴(直近 1 年) */}
+                          <div className="mt-4 pt-3 border-t border-gray-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-semibold text-gray-500">
+                                📜 このシリーズの過去履歴(直近 1 年)
+                                {taskHistoryMap[task.id] && taskHistoryMap[task.id].length > 0 && <span className="text-gray-400 font-normal ml-1">({taskHistoryMap[task.id].length} 件)</span>}
+                              </p>
+                              {taskHistoryLoading[task.id] && (
+                                <span className="text-[10px] text-gray-400">読み込み中…</span>
+                              )}
+                              {taskHistoryMap[task.id] && !taskHistoryLoading[task.id] && (
+                                <button
+                                  onClick={() => fetchTaskHistory(task.id)}
+                                  className="text-[10px] text-gray-400 hover:text-gray-600"
+                                  title="再読み込み"
+                                >
+                                  ↻ 更新
+                                </button>
+                              )}
+                            </div>
+                            {taskHistoryMap[task.id] && (
+                              (taskHistoryMap[task.id] || []).length === 0 ? (
+                                <p className="text-[10px] text-gray-400 text-center py-2">
+                                  直近 1 年にシリーズ履歴はありません。次回このテンプレを同じクライアントに適用すると、ここに積み上がっていきます。
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1">
+                                  {taskHistoryMap[task.id].map((h) => {
+                                    const doneCount = h.subtasks.filter((s) => s.is_completed).length;
+                                    const total = h.subtasks.length;
+                                    const isOpen = !!expandedHistoryItems[h.id];
+                                    const isDone = h.is_completed || h.status === '完了（未請求）' || h.status === '請求済' || h.status === '回収済';
+                                    return (
+                                      <div
+                                        key={h.id}
+                                        className="bg-gray-50 border border-gray-100 rounded-lg overflow-hidden"
+                                      >
+                                        {/* サマリ行(クリックで展開・縮小) */}
+                                        <div
+                                          className="flex items-start gap-2 px-3 py-1.5 hover:bg-gray-100 cursor-pointer transition-colors"
+                                          onClick={() => setExpandedHistoryItems((p) => ({ ...p, [h.id]: !isOpen }))}
+                                        >
+                                          <span className="text-[10px] shrink-0 mt-0.5">
+                                            {isDone ? '✅' : '⏳'}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                              <p className="text-xs text-gray-700 truncate flex-1">{h.title}</p>
+                                              {h.task_number && <span className="text-[9px] text-gray-400 font-mono shrink-0">{h.task_number}</span>}
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {h.due_date && <span className="text-[9px] text-gray-400">締: {h.due_date}</span>}
+                                              {h.assignee && <span className="text-[9px] text-blue-400">担当: {h.assignee}</span>}
+                                              {total > 0 && <span className="text-[9px] text-gray-400">{doneCount}/{total} 完了</span>}
+                                              {h.important_note && !isOpen && <span className="text-[9px] text-orange-500 truncate max-w-[200px]">⚠ {h.important_note}</span>}
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <span className="text-[10px] text-gray-400">{isOpen ? '▲' : '▼'}</span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/?task=${h.id}`);
+                                              }}
+                                              className="text-[9px] text-blue-400 hover:text-blue-600 border border-blue-200 hover:border-blue-400 px-1.5 py-0.5 rounded"
+                                              title="このタスクを開く"
+                                            >
+                                              開く
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* 展開エリア: 重要事項 + サブタスク詳細 */}
+                                        {isOpen && (
+                                          <div className="bg-white border-t border-gray-200 px-3 py-2">
+                                            {h.important_note && (
+                                              <div className="mb-2">
+                                                <p className="text-[9px] text-gray-400 mb-0.5">📋 タスク重要事項</p>
+                                                <p className="text-[11px] text-orange-600 bg-orange-50 border border-orange-100 rounded px-2 py-1">
+                                                  ⚠ {h.important_note}
+                                                </p>
+                                              </div>
+                                            )}
+                                            {h.subtasks.length > 0 ? (
+                                              <div>
+                                                <p className="text-[9px] text-gray-400 mb-0.5">📝 サブタスク ({doneCount}/{total})</p>
+                                                <div className="flex flex-col gap-1">
+                                                  {h.subtasks
+                                                    .slice()
+                                                    .sort((a, b) => (a.order_num ?? 0) - (b.order_num ?? 0))
+                                                    .map((s) => (
+                                                      <div key={s.id} className="border border-gray-100 rounded px-2 py-1 bg-gray-50">
+                                                        <div className="flex items-center gap-1.5">
+                                                          <span className="text-[10px] shrink-0">
+                                                            {s.is_completed ? '✓' : '○'}
+                                                          </span>
+                                                          <span className={`text-[11px] flex-1 ${s.is_completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                                            {s.title}
+                                                          </span>
+                                                          {s.assignee && <span className="text-[9px] text-blue-400 shrink-0">{s.assignee}</span>}
+                                                        </div>
+                                                        {s.important_note && (
+                                                          <p className="text-[10px] text-orange-500 mt-0.5 pl-4">⚠ {s.important_note}</p>
+                                                        )}
+                                                        {s.description && (
+                                                          <p className="text-[10px] text-gray-500 mt-0.5 pl-4">{s.description}</p>
+                                                        )}
+                                                      </div>
+                                                    ))}
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <p className="text-[10px] text-gray-400">サブタスクなし</p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )
+                            )}
+                          </div>
+
+                          {/* タスク単位のチャット/メモ */}
+                          <div className="mt-4 pt-3 border-t border-gray-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-semibold text-gray-500">💬 このタスクへのメモ {taskMemosMap[task.id] && taskMemosMap[task.id].length > 0 && <span className="text-gray-400 font-normal">({taskMemosMap[task.id].length})</span>}</p>
+                              {!taskMemosMap[task.id] && (
+                                <button
+                                  onClick={() => fetchTaskMemos(task.id)}
+                                  className="text-[10px] text-blue-400 hover:text-blue-600"
+                                >
+                                  読み込む
+                                </button>
+                              )}
+                            </div>
+                            {taskMemosMap[task.id] && (
+                              <div className="flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={newTaskMemoInput[task.id] ?? ""}
+                                    onChange={(e) => setNewTaskMemoInput((p) => ({ ...p, [task.id]: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === "Enter") postTaskMemo(task.id); }}
+                                    placeholder="このタスクに関するメモを書く… (Enter で投稿)"
+                                    disabled={taskMemoLoading[task.id]}
+                                    className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-50"
+                                  />
+                                  <button
+                                    onClick={() => postTaskMemo(task.id)}
+                                    disabled={!(newTaskMemoInput[task.id] || "").trim() || taskMemoLoading[task.id]}
+                                    className="text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                                  >
+                                    投稿
+                                  </button>
+                                </div>
+                                {(taskMemosMap[task.id] || []).length === 0 ? (
+                                  <p className="text-[10px] text-gray-400 text-center py-2">
+                                    まだメモがありません。このタスクの議論・判断過程・引き継ぎをここに残せます。
+                                  </p>
+                                ) : (
+                                  <div className="flex flex-col gap-1.5">
+                                    {(taskMemosMap[task.id] || []).map((memo) => {
+                                      const isMine = memo.user_name === (currentUser?.name || "");
+                                      return (
+                                        <div key={memo.id} className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                                            <span className="text-[10px] font-semibold text-gray-600">
+                                              {memo.user_name || '(名無し)'}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[9px] text-gray-400">
+                                                {new Date(memo.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                              </span>
+                                              {isMine && (
+                                                <button
+                                                  onClick={() => { if (confirm('このメモを削除しますか?')) deleteTaskMemo(task.id, memo.id); }}
+                                                  className="text-[9px] text-gray-300 hover:text-red-400"
+                                                >
+                                                  削除
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                            {memo.content}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
                           </div>
                           </div>
                         </td>
